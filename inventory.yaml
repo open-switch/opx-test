@@ -1,0 +1,22 @@
+# This is a local custom ansible 'hosts' file.
+#
+# Use it with -i path/to/inventory.yaml
+#
+#   - Comments begin with the '#' character
+#   - Blank lines are ignored
+#   - Groups of hosts are delimited by [header] elements
+#   - You can enter hostnames or ip addresses
+#   - A hostname/ip can be a member of multiple groups
+
+
+[devices]
+baseHW ansible_host=a.b.c.d
+
+[devices:vars]
+ansible_user=<username>
+ansible_connection=ssh
+ansible_ssh_pass=<password>
+ansible_ssh_user=<sudo username>
+ansible_become_method=sudo
+ansible_become_pass=<sudo password>
+
