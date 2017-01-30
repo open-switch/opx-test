@@ -39,6 +39,7 @@
   
   vars:
     test_int:       e101-001-0
+    test_int1:      e101-002-0
     test_route1:    100.0.0.1
     test_route2:    20.0.0.0
     test_mac   :    00:11:22:33:44:55
@@ -404,6 +405,71 @@
         that: "'base-mac/query/mac-address = {{test_mac}}' not in result_getmaccps.stdout"
         msg: "MAC {{test_mac}} found in NAS, check cps set to delete entries"
 
+
+    - name: SEND -Configure VLAN and add untagged ports using CPS set
+      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/cps_config_vlan.py --add --id {{test_vlan}} --port {{test_int}},{{test_int1}}"
+      become: true
+      ignore_errors: yes
+      register: result_cpsvlanadd
+      changed_when: False
+    - name: INFO - Any messages printed during VLAN configuration are shown here
+      debug:
+        msg: "{{result_cpsvlanadd.stdout_lines}}"
+    - name: VERIFY- Check whether the CPS get succeeded
+      assert:
+        that: "'Success' in result_cpsvlanadd.stdout"
+        msg: CPS set failed here
+    - name: SEND -CPS GET from NAS
+      command:  /usr/bin/cps_config_vlan.py --show
+      become: true
+      register: result_getvlancps
+      changed_when: False
+      ignore_errors: yes
+    - name: INFO- Dumping VLAN Entry with the untagged ports
+      debug:
+        msg: "{{result_getvlancps.stdout_lines}}"
+    - name: VERIFY - Check if the vlan {{test_vlan}} exists. If the vlan  does not exists, then CPS get failed.
+      assert:
+        that: "'base-if-vlan/if/interfaces/interface/id = {{test_vlan}}' in result_getvlancps.stdout"
+        msg: "VLAN {{test_vlan}} not found in NAS"
+    - name: VERIFY - Check if the vlan {{test_vlan}} have untagged ports
+      assert:
+        that: "'dell-if/if/interfaces/interface/untagged-ports = {{test_int1}},{{test_int}}' in result_getvlancps.stdout"
+        msg: "Untagged ports {{test_int}},{{test_int1}} not present in CPS get"
+
+
+    - name: SEND -Delete one of the untagged port in vlan {{test_vlan}} using CPS set
+      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/cps_config_vlan.py --addport --name br{{test_vlan}} --port {{test_int1}}"
+      become: true
+      ignore_errors: yes
+      register: result_cpsvlanupdate
+      changed_when: False
+    - name: INFO - Any messages printed during VLAN configuration are shown here
+      debug:
+        msg: "{{result_cpsvlanupdate.stdout_lines}}"
+    - name: VERIFY- Check whether the CPS get succeeded
+      assert:
+        that: "'Success' in result_cpsvlanupdate.stdout"
+        msg: CPS set failed here
+    - name: SEND -CPS GET from NAS
+      command:  /usr/bin/cps_config_vlan.py --show
+      become: true
+      register: result_getvlancps
+      changed_when: False
+      ignore_errors: yes
+    - name: INFO- Dumping VLAN Entry with the updated untagged ports
+      debug:
+        msg: "{{result_getvlancps.stdout_lines}}"
+    - name: VERIFY - Check if the vlan {{test_vlan}} exists. If the vlan  does not exists, then CPS get failed.
+      assert:
+        that: "'base-if-vlan/if/interfaces/interface/id = {{test_vlan}}' in result_getvlancps.stdout"
+        msg: "VLAN {{test_vlan}} not found in NAS"
+    - name: VERIFY - Check if the vlan {{test_vlan}} have the updated untagged ports
+      assert:
+        that: "'dell-if/if/interfaces/interface/untagged-ports = {{test_int1}}' in result_getvlancps.stdout"
+        msg: "Untagged ports {{test_int}} is present in CPS get"
+
+
     - name: SEND - systemctl is-system-running
       command: systemctl is-system-running
       become: true
@@ -440,6 +506,21 @@
         msg: "{{result_getaptlistcmd.stdout_lines}}"
 
     - block:
+      - name: SEND - opx-show-env
+        command: /usr/bin/opx-show-env
+        become: true
+        register: result_getenv
+        changed_when: False
+      - name: INFO - List of all env like power supply, fans status
+        debug:
+          msg: "{{result_getenv.stdout_lines}}"
+      - name: VERIFY - Show env command is working
+        assert:
+          that: "'Temperature sensors' in result_getenv.stdout"
+          msg:  "Error when executing command."
+
+
+    - block:
       - name: SEND - opx-show-transceivers all
         command: /usr/bin/opx-show-transceivers all 
         become: true
@@ -450,7 +531,7 @@
           msg: "{{result_gettransceivers.stdout_lines}}"
       - name: VERIFY - Show transceivers command is working [SmokeTest_Show_Transceivers] 
         assert:
-          that: "'command not found' not in result_gettransceivers.stdout_lines"
+          that: "'base-pas/media' in result_gettransceivers.stdout"
           msg:  "Error when executing command."
 
 
