@@ -470,6 +470,33 @@
         msg: "Untagged ports {{test_int}} is present in CPS get"
 
 
+    - name: SEND -Delete the vlan {{test_vlan}} using CPS set
+      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/cps_config_vlan.py --del --name br{{test_vlan}}"
+      become: true
+      ignore_errors: yes
+      register: result_cpsvlandel
+      changed_when: False
+    - name: INFO - Any messages printed during VLAN deletion are shown here
+      debug:
+        msg: "{{result_cpsvlandel.stdout_lines}}"
+    - name: VERIFY- Check whether the CPS get succeeded
+      assert:
+        that: "'Success' in result_cpsvlandel.stdout"
+        msg: CPS set failed here
+    - name: SEND -CPS GET from NAS
+      command:  /usr/bin/cps_config_vlan.py --show
+      become: true
+      register: result_getvlancps
+      changed_when: False
+      ignore_errors: yes
+    - name: INFO- Dumping VLAN entry using CPS Get
+      debug:
+        msg: "{{result_getvlancps.stdout_lines}}"
+    - name: VERIFY - Check if the vlan {{test_vlan}} exists. If the vlan  does not exists, then CPS get passed.
+      assert:
+        that: "'' in result_getvlancps.stdout"
+        msg: "VLAN {{test_vlan}} found in NAS"
+
     - name: SEND - systemctl is-system-running
       command: systemctl is-system-running
       become: true
