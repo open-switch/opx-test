@@ -68,7 +68,7 @@ The smoke test runs on the single node/switch.
 2. Edit the hosts file with the details on management IP, username, password/key (For ONIE, there needs to be seperate host with username as root, check the  sample hosts file)
 3. Run the playbook with the command where _hostname_ is the hostname for OPX installation from ONIE, _IMG_LOCATION_ is the location where the OPX image is located and _IMG_NAME_ is the name of the file which is copied to the tmp directory of ONIE.
 
-     'ansible-playbook site.yml -i hosts --extra-vars "IMG_LOCATION=http://dell-networking.bintray.com/opx-images/opx-onie-installer_1.1_amd64.bin IMG_NAME=opx_image hostname=ONIE_Leaf1" -vv'
+    ansible-playbook site.yml -i hosts --extra-vars "IMG_LOCATION=http://dell-networking.bintray.com/opx-images/opx-onie-installer_1.1_amd64.bin IMG_NAME=opx_image hostname=ONIE_Leaf1" -vv
 
 See [[opx-test]] for all the files.
 
