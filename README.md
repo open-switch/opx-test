@@ -62,7 +62,7 @@ The smoke test runs on the single node/switch.
 - Verify the power supply, fan, and so on using opx-show-env which uses CPS Get
 - Verify the media/optics present on the system using opx-show-transceivers which uses CPS Get
 
-# How to run smoke test
+## How to run smoke test
 
 1. Download Ansible in any server/laptop (see Ansible Installation).
 2. Edit the hosts file with the details on management IP, username, password/key (For ONIE, there needs to be seperate host with username as root, check the  sample hosts file)
