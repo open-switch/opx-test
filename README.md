@@ -70,6 +70,4 @@ The smoke test runs on the single node/switch.
 
     ansible-playbook site.yml -i hosts --extra-vars "IMG_LOCATION=http://dell-networking.bintray.com/opx-images/opx-onie-installer_1.1_amd64.bin IMG_NAME=opx_image hostname=ONIE_Leaf1" -vv
 
-See [[opx-test]] for all the files.
-
 (c) 2017 Dell EMC
