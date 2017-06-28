@@ -1,0 +1,16 @@
+---
+- name: Create the SSH directory in jenkins folder
+  file:
+    path: /var/lib/jenkins/.ssh
+    state: directory
+    mode: 0755
+    owner: jenkins
+    group: jenkins 
+
+- name: Touch the file known_hosts in SSH directory
+  file:
+    path: /var/lib/jenkins/.ssh/known_hosts
+    state: touch
+    mode: 0755
+    owner: jenkins
+    group: jenkins

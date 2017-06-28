@@ -1,0 +1,54 @@
+---
+
+- name: Update the repositories
+  apt:
+    update_cache: yes
+
+- name: Install python-pat and python3-apt for adding the repos
+  apt: name={{item}} state=installed
+  with_items:
+      - python-apt
+      - python3-apt
+
+- name: Adding the repository list on the sources
+  apt_repository: 
+    repo: deb http://dl.bintray.com/open-switch/opx-apt jessie main
+    state: present
+    filename: "opx"
+
+- name: Add the second repo list on source 
+  apt_repository: 
+    repo: deb http://dell-networking.bintray.com/opx-apt jessie main
+    state: present
+    filename: opx
+
+- name: Enable dhcp on eth0 interfaces file
+  copy:
+    src: /var/lib/jenkins/jobs/smoke_test/ansible-scripts/roles/pkg_install/files/interfaces
+    dest: /etc/network/interfaces
+    owner: root
+    group: root
+
+- name: Update the repositories
+  apt:
+    update_cache: yes
+
+- name: Install the OPX BASE package
+  apt:
+    name: opx-dell-s6000
+    allow_unauthenticated: yes
+    force: yes
+
+- name: Reboot the switch for all the OPX Base services to come up
+  command: /sbin/shutdown -r +1
+  async: 0
+  poll: 0
+  ignore_errors: true
+
+- pause:
+    minutes: 4
+
+- name: check the switch is reachable
+  local_action: wait_for host={{ inventory_hostname }} port=22 delay=30 timeout=300
+                state=started
+  become: false
