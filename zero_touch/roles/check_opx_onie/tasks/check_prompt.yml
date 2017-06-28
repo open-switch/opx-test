@@ -1,4 +1,5 @@
 ---
+
 - name: Check whether it is opx prompt or onie prompt
   expect:
     command: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{{ inventory_hostname }}
