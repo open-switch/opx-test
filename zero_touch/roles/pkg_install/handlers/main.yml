@@ -1,0 +1,8 @@
+---
+# handlers file for onie_img_install
+- name: wait for switch to come back up
+  local_action: wait_for host={{ inventory_hostname }} port=22 delay=30 timeout=300
+                state=started
+  become: false
+  when: inventory_hostname in groups['linux_core']
+

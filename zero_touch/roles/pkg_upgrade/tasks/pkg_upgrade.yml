@@ -1,0 +1,32 @@
+---
+
+- name: Update all packages to the latest version. THIS TASK MAY TAKE SOME TIME!!!
+  apt:
+    upgrade: dist 
+    update_cache: yes
+
+- name: Reboot the switch for all the OPX Base services to come up
+  command: /sbin/shutdown -r +1
+  async: 0
+  poll: 0
+  ignore_errors: true
+
+- pause:
+    minutes: 3
+
+- name: Dhclient on management interface as the dhcp is not enabled on eth0
+  expect:
+    command: telnet '{{ console_ip }}' '{{ console_port }}'
+    responses:
+      "Escape character is '\\^]'.": "admin\r\n"
+      "Password": "admin\r\n sudo -i\r\n"
+      "password for admin:": "admin\r\n"
+      "root@OPX:~#": "dhclient eth0\r\n exit\n"
+    timeout : 130
+  delegate_to: 127.0.0.1
+  ignore_errors: yes
+
+- name: check the switch comes back up
+  local_action: wait_for host={{ inventory_hostname }} port=22 delay=30 timeout=300
+                state=started
+  become: false

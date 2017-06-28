@@ -1,0 +1,74 @@
+---
+- name: Check whether it is opx prompt or onie prompt
+  expect:
+    command: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{{ inventory_hostname }}
+    responses:
+      "password": "root\r\n"
+    timeout: 60 
+  register: debug_telnet
+  ignore_errors: yes
+
+- name: Run this tasks since OPX is already installed
+  include_role:
+    name: onie_img_install
+  when: "'root@' in debug_telnet.stdout"
+
+- name: Disable the reboot option in ONIE uninstaller
+  shell: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{{ inventory_hostname }} "sed -i 's/reboot/echo \"Disabling Reboot\"/g' /bin/onie-uninstaller"
+  delegate_to: 127.0.0.1
+  ignore_errors: yes
+  when: "('root@' not in debug_telnet.stdout) or ('root@' in debug_telnet.stdout)"
+
+- name: Enable the uninstaller option in onie-install mode (Applicable for ONIE Version>=3.20.1.4)
+  shell: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{{ inventory_hostname }} "sed -i 's/"$onie_boot_reason" != \"uninstall\"/"$onie_boot_reason" != \"install\"/g' /bin/onie-uninstaller"
+  delegate_to: 127.0.0.1
+  ignore_errors: yes
+  when: "('root@' not in debug_telnet.stdout) or ('root@' in debug_telnet.stdout)"
+
+- name: Uninstall the previous OS if installed from ONIE. THIS TASK MAY TAKE SOME TIME!!!!
+  shell: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{{ inventory_hostname }} '/bin/ash -ilc "onie-uninstaller"'
+  delegate_to: 127.0.0.1
+  when: "('root@' not in debug_telnet.stdout) or ('root@' in debug_telnet.stdout)"
+
+- name: Disable the reboot after installing OPX
+  shell: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{{ inventory_hostname }} "sed -i 's/&& reboot//g' /bin/exec_installer" 
+  delegate_to: 127.0.0.1
+  ignore_errors: yes
+  when: "('root@' not in debug_telnet.stdout) or ('root@' in debug_telnet.stdout)"
+
+- name: Copy the OPX NOS file to the switch
+  command: bash -c "wget -O - {{IMG_LOCATION}} | ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{{inventory_hostname}} 'cat >/tmp/{{IMG_NAME}}.bin'"
+  delegate_to: 127.0.0.1
+  when: "('root@' not in debug_telnet.stdout) or ('root@' in debug_telnet.stdout)"
+
+- name: Install the OPX NOS. THIS TASK MAY TAKE SOME TIME!!!!
+  shell: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{{ inventory_hostname }} '/bin/ash -ilc "onie-nos-install /tmp/{{IMG_NAME}}.bin"'
+  delegate_to: 127.0.0.1
+  when: "('root@' not in debug_telnet.stdout) or ('root@' in debug_telnet.stdout)"
+
+- name: Reboot the switch after installing OPX
+  shell: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{{ inventory_hostname }} '/bin/ash -ilc "reboot"'
+  delegate_to: 127.0.0.1
+  when: "('root@' not in debug_telnet.stdout) or ('root@' in debug_telnet.stdout)"
+
+- pause:
+    minutes: 2
+
+- name: Dhclient on management interface as the dhcp is not enabled on eth0
+  expect:
+    command: telnet '{{ console_ip }}' '{{ console_port }}'
+    responses:
+      "Escape character is '\\^]'.": "admin\r\n"
+      "Password": "admin\r\n sudo -i\n"
+      "password for admin:": "admin\r\n dhclient eth0\n"
+      "root@OPX:~#": "dhclient eth0\r\n exit\n"
+    timeout : 10
+  register: debug_dhcp
+  delegate_to: 127.0.0.1
+  when: "('root@' not in debug_telnet.stdout) or ('root@' in debug_telnet.stdout)"
+  ignore_errors: yes
+ 
+- name: check the switch comes back up
+  local_action: wait_for host={{ inventory_hostname }} port=22 delay=30 timeout=500
+                state=started
+  when: "('root@' not in debug_telnet.stdout) or ('root@' in debug_telnet.stdout)"

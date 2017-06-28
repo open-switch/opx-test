@@ -1,0 +1,5 @@
+---
+# vars file for check_opx_onie
+
+console_ip: x.x.x.x
+console_port: xx

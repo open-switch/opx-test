@@ -1,0 +1,2 @@
+---
+- include: nos_install.yml
