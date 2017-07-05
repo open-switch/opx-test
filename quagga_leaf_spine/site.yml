@@ -1,0 +1,7 @@
+---
+
+- hosts: all
+  become: true
+  gather_facts: no
+  roles:
+    - quagga_leaf_spine

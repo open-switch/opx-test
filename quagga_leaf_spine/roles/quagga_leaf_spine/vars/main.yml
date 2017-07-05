@@ -1,0 +1,85 @@
+---
+
+interfaces:
+    Leaf1:
+        loopbackIP:  1.1.1.1
+        loopbackID: "lo"
+        interface1: e101-001-0
+        interface2: e101-002-0
+        IPAddress1: 10.1.1.1
+        nhcount: 2
+        nhcount_shut: 1
+        routecount: 501
+        neiIPAddress1: 10.1.1.2
+        IPNetwork1: 10.1.1.0
+        IPNetwork2: 20.1.1.0
+        IPAddress2: 20.1.1.1
+        neiIPAddress2: 20.1.1.2
+        netmask: 24
+        hostMask: 32
+        loopbackMask: 32
+        localas: 64532
+        remoteas: 64544
+        neighbors:
+            "10.1.1.2":
+            "20.1.1.2":
+
+    Spine1:
+        loopbackIP: 2.2.2.2
+        loopbackID: "lo"
+        interface1: e101-001-0
+        interface2: e101-002-0
+        IPAddress1: 10.1.1.2
+        neiIPAddress1: 10.1.1.1
+        IPNetwork1: 10.1.1.0
+        IPNetwork2: 30.1.1.0
+        IPAddress2: 30.1.1.2
+        neiIPAddress2: 30.1.1.1
+        netmask: 24
+        hostMask: 32
+        loopbackMask: 32
+        localas: 64544
+        remoteas1: 64532
+        remoteas2: 64533
+        neighbors:
+            "neighbor1": "10.1.1.1"
+            "neighbor2": "30.1.1.1"
+     
+    Leaf2:
+        loopbackIP: 3.3.3.3
+        pktcountECMP: 945
+        pktcount: 1890
+        loopbackID: "lo"
+        interface1: e101-002-0
+        interface2: e101-001-0
+        IPAddress1: 30.1.1.1
+        neiIPAddress1: 30.1.1.2
+        IPAddress2: 40.1.1.1
+        neiIPAddress2: 40.1.1.2
+        netmask: 24
+        hostMask: 32
+        loopbackMask: 32
+        localas: 64533
+        remoteas: 64544
+        neighbors:
+            "30.1.1.2":
+            "40.1.1.2":
+
+    Spine2:
+        loopbackIP: 4.4.4.4
+        loopbackID: "lo"
+        interface1: e101-002-0
+        interface2: e101-001-0
+        IPAddress1: 20.1.1.2
+        neiIPAddress1: 20.1.1.1
+        IPAddress2: 40.1.1.2
+        neiIPAddress2: 40.1.1.1
+        netmask: 24
+        hostMask: 32
+        loopbackMask: 32
+        localas: 64544
+        remoteas1: 64532
+        remoteas2: 64533
+        neighbors:
+            "neighbor1": "20.1.1.1"
+            "neighbor2": "40.1.1.1"

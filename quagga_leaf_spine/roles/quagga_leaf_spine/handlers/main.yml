@@ -1,0 +1,7 @@
+---
+# handlers file for quagga_leaf_spine
+
+- name: restart quagga
+  service:
+    name: quagga
+    state: restarted
