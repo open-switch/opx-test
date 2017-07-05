@@ -1,0 +1,60 @@
+---
+
+- name: CPS Get the number of routes on NAS with nexthop as 2 on Leaf1
+  command: bash -c "/usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 | grep 'nh-count = {{ interfaces[ansible_host]['nhcount'] }}' | wc -l"
+  register: cps_get_routes
+  when: inventory_hostname == 'Leaf1'
+
+- debug:
+    msg: "{{ cps_get_routes }}"
+  when: inventory_hostname == 'Leaf1'
+
+- name: Verify the number of routes in NAS with next-hop of 2 on Leaf1
+  assert:
+    that: "{{ interfaces[ansible_host]['routecount'] }} == {{ cps_get_routes.stdout }}"
+    msg: Routes are not present
+  when: inventory_hostname == 'Leaf1'
+
+- name: Copy the script mgen to Leaf1
+  become: true
+  copy:
+    src: files/script.mgen
+    dest: /tmp/
+    owner: root
+    group: root
+    mode: 0644
+  when: inventory_hostname == 'Leaf1'
+
+- name: Clear the statistics on the device before sending the traffic
+  shell: "/usr/bin/opx-show-stats clear {{ item }}"
+  with_items:
+      - "{{ interfaces[ansible_host]['interface1'] }}"
+      - "{{ interfaces[ansible_host]['interface2'] }}"
+  when: inventory_hostname == 'Leaf2'
+
+- name: Send the data traffic to the 500 routes generated
+  shell: "start-stop-daemon --start --quiet --pidfile /var/log/syslog --exec /usr/bin/mgen input /tmp/script.mgen"
+  when: inventory_hostname == 'Leaf1'
+
+- pause:
+    seconds: 60
+
+- name: Dump the packet counters on all interfaces on Leaf2 with ECMP paths
+  shell: "/usr/bin/opx-show-stats if_stat {{ item }} | grep ether-in-pkts-1024-to-1518-octets | awk '{print $3}'"
+  with_items:
+      - "{{ interfaces[ansible_host]['interface1'] }}"
+      - "{{ interfaces[ansible_host]['interface2'] }}"
+  register: pkt_counters
+  when: inventory_hostname == 'Leaf2'
+
+- debug:
+    msg: "{{ pkt_counters.results[1].stdout }}"
+  when: inventory_hostname == 'Leaf2'
+
+- name: Verify the packets showing on all the ECMP paths
+  assert:
+    that:
+      - "{{ pkt_counters.results[0].stdout }} >= {{ interfaces[ansible_host]['pktcountECMP'] }}"
+      - "{{ pkt_counters.results[1].stdout }} >= {{ interfaces[ansible_host]['pktcountECMP'] }}"
+    msg: Number of packets is not received correctly on ECMP path
+  when: inventory_hostname == 'Leaf2'

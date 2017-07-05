@@ -1,0 +1,31 @@
+{% set intvars = interfaces[ansible_host] -%}
+!
+interface {{ intvars.loopbackID }}
+ip address {{ intvars.loopbackIP }}/{{ intvars.loopbackMask}}
+no shutdown
+!
+interface {{ intvars.interface1 }}
+ ip address {{ intvars.IPAddress1 }}/{{ intvars.netmask }}
+ no shutdown
+!
+interface {{ intvars.interface2 }}
+ ip address {{ intvars.IPAddress2 }}/{{ intvars.netmask }}
+ no shutdown
+!
+router bgp {{ intvars.localas }}
+bgp router-id {{ intvars.loopbackIP }}
+{% if intvars.neighbors is defined %}
+{% if intvars.remoteas is defined %}
+{% for neighbor in intvars.neighbors %}
+neighbor {{ neighbor }} remote-as {{ intvars.remoteas }}
+{% endfor %}
+{% endif %}
+{% endif %}
+network {{ intvars.loopbackIP }}/{{ intvars.loopbackMask }}
+{% if intvars.remoteas1 is defined %}
+{% if interfaces[ansible_host].neighbors is defined %}
+neighbor {{ interfaces[ansible_host].neighbors.neighbor1 }} remote-as {{ intvars.remoteas1 }}
+neighbor {{ interfaces[ansible_host].neighbors.neighbor2 }} remote-as {{ intvars.remoteas2 }}
+{% endif %}
+{% endif %}
+maximum-paths 64

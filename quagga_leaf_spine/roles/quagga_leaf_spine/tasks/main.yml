@@ -1,0 +1,2 @@
+---
+- include: quagga_leaf_spine.yml

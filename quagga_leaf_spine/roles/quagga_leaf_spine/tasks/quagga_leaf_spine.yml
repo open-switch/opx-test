@@ -1,0 +1,287 @@
+---
+
+- name: Write the Hostname to File
+  shell: echo "{{ inventory_hostname }}" > /etc/hostname
+
+- name: Apply Hostname
+  shell: hostname -F /etc/hostname
+
+- name: Add Local DNS Resolution for our Hostname
+  lineinfile: dest=/etc/hosts line="127.0.1.1    {{inventory_hostname}}" regexp=^.*127.0.1.1
+
+- name: Store the routes in the variable to compare the routes against the Switch
+  set_fact:
+    variable: "[{% for i in range(0,256,1) %}'99.1.{{ i }}.0',{% endfor %}]"
+    variable1: "[{% for i in range(0,244,1) %}'99.2.{{ i }}.0',{% endfor %}]"
+    output_rate: 500
+
+- name: Update the repositories and Install mgen traffic generator
+  apt:
+    name: mgen
+    update_cache: yes
+
+- name: Update the repositories cache and Install quagga package on all the Leaf-Spine Switches
+  apt:
+    name: quagga
+    update_cache: yes
+
+- name: Enable Individual Routing Protocol Daemons
+  copy: src=files/daemons dest=/etc/quagga/daemons
+
+- name: Copy the vtysh configuration file to remote end
+  copy: src=files/vtysh.conf dest=/etc/quagga/vtysh.conf
+
+- shell: echo 'export VTYSH_PAGER=more' >> /etc/profile
+
+- shell: . /etc/profile
+
+- name: Generate Quagga Configuration
+  template: src=files/Quagga.conf.j2 dest=/etc/quagga/Quagga.conf mode=0777
+
+- name: Restart Quagga Service
+  service: name=quagga state=restarted
+
+- name: Verify the quagga service is running
+  service:
+    name: quagga
+    state: started
+
+- name:  check the "ip route show" command
+  shell: ip route show
+  register: dump_ip_route_show
+
+- name: Dump the output of "ip route show" command
+  debug:
+    msg: "{{ dump_ip_route_show.stdout }}"
+
+- name: Verify the IP address is programmed properly in kernel
+  assert:
+    that:
+      - "'{{ interfaces[ansible_host]['IPAddress1'] }}' in dump_ip_route_show.stdout"
+      - "'{{ interfaces[ansible_host]['IPAddress2'] }}' in dump_ip_route_show.stdout"
+    msg: IP address is not programmed
+
+- name: Change the IP Address to hex format to check in NAS for Leaf1
+  command: bash -c "export IPAddress='{{ item }}'; printf '%02x' ${IPAddress//./ }; echo"
+  with_items:
+     - "{{ interfaces[ansible_host]['IPAddress1'] }}"
+     - "{{ interfaces[ansible_host]['IPAddress2'] }}"
+  when: inventory_hostname == 'Leaf1'
+  register: hex_ipaddress_leaf1
+
+- name: Send the CPS API to check IP address programming on NAS for Leaf1
+  command:  '/usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix="{{ item }}" base-route/obj/entry/prefix-len=32'
+  with_items:
+     - "{{ hex_ipaddress_leaf1.results[0].stdout }}"
+     - "{{ hex_ipaddress_leaf1.results[1].stdout }}"
+  register: output_cps_getroute_leaf1
+  when: inventory_hostname == 'Leaf1'
+
+- name: Verify the IP address is programmed in NAS for Leaf1
+  assert:
+    that: 
+      - "'base-route/obj/entry/route-prefix = {{hex_ipaddress_leaf1.results[0].stdout}}' in output_cps_getroute_leaf1.results[0].stdout_lines"
+      - "'base-route/obj/entry/route-prefix = {{hex_ipaddress_leaf1.results[1].stdout}}' in output_cps_getroute_leaf1.results[1].stdout_lines"
+  when: inventory_hostname == 'Leaf1'
+
+- name: Change the IP Address to hex format to check in NAS for Leaf2
+  command: bash -c "export IPAddress='{{ item }}'; printf '%02x' ${IPAddress//./ }; echo"
+  with_items:
+     - "{{ interfaces[ansible_host]['IPAddress1'] }}"
+     - "{{ interfaces[ansible_host]['IPAddress2'] }}"
+  when: inventory_hostname == 'Leaf2'
+  register: hex_ipaddress_leaf2
+
+- name: Send the CPS API to check IP address programming on NAS for Leaf2
+  command: '/usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix="{{ item }}" base-route/obj/entry/prefix-len=32'
+  with_items:
+     - "{{ hex_ipaddress_leaf2.results[0].stdout }}"
+     - "{{ hex_ipaddress_leaf2.results[1].stdout }}"
+  register: output_cps_getroute_leaf2
+  when: inventory_hostname == 'Leaf2'
+
+- name: Verify the IP address is programmed in NAS for Leaf2
+  assert:
+    that:
+      - "'base-route/obj/entry/route-prefix = {{hex_ipaddress_leaf2.results[0].stdout}}' in output_cps_getroute_leaf2.results[0].stdout_lines"
+      - "'base-route/obj/entry/route-prefix = {{hex_ipaddress_leaf2.results[1].stdout}}' in output_cps_getroute_leaf2.results[1].stdout_lines"
+  when: inventory_hostname == 'Leaf2'
+
+- name: Change the IP Address to hex format to check in NAS for Spine1
+  command: bash -c "export IPAddress='{{ item }}'; printf '%02x' ${IPAddress//./ }; echo"
+  with_items:
+     - "{{ interfaces[ansible_host]['IPAddress1'] }}"
+     - "{{ interfaces[ansible_host]['IPAddress2'] }}"
+  when: inventory_hostname == 'Spine1'
+  register: hex_ipaddress_spine1
+
+- name: Send the CPS API to check IP address programming on NAS for Spine1
+  command: '/usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix="{{ item }}" base-route/obj/entry/prefix-len=32'
+  with_items:
+     - "{{ hex_ipaddress_spine1.results[0].stdout }}"
+     - "{{ hex_ipaddress_spine1.results[1].stdout }}"
+  register: output_cps_getroute_spine1
+  when: inventory_hostname == 'Spine1'
+
+- name: Verify the IP address is programmed in NAS for Spine1
+  assert:
+    that:
+      - "'base-route/obj/entry/route-prefix = {{hex_ipaddress_spine1.results[0].stdout}}' in output_cps_getroute_spine1.results[0].stdout_lines"
+      - "'base-route/obj/entry/route-prefix = {{hex_ipaddress_spine1.results[1].stdout}}' in output_cps_getroute_spine1.results[1].stdout_lines"
+  when: inventory_hostname == 'Spine1'
+
+- name: Change the IP Address to hex format to check in NAS for Spine2
+  command: bash -c "export IPAddress='{{ item }}'; printf '%02x' ${IPAddress//./ }; echo"
+  with_items:
+     - "{{ interfaces[ansible_host]['IPAddress1'] }}"
+     - "{{ interfaces[ansible_host]['IPAddress2'] }}"
+  when: inventory_hostname == 'Spine2'
+  register: hex_ipaddress_spine2
+
+- name: Send the CPS API to check IP address programming on NAS for Spine2
+  command: '/usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix="{{ item }}" base-route/obj/entry/prefix-len=32'
+  with_items:
+     - "{{ hex_ipaddress_spine2.results[0].stdout }}"
+     - "{{ hex_ipaddress_spine2.results[1].stdout }}"
+  register: output_cps_getroute_spine2
+  when: inventory_hostname == 'Spine2'
+
+- name: Verify the IP address is programmed in NAS for Spine2
+  assert:
+    that:
+      - "'base-route/obj/entry/route-prefix = {{hex_ipaddress_spine2.results[0].stdout}}' in output_cps_getroute_spine2.results[0].stdout_lines"
+      - "'base-route/obj/entry/route-prefix = {{hex_ipaddress_spine2.results[1].stdout}}' in output_cps_getroute_spine2.results[1].stdout_lines"
+  when: inventory_hostname == 'Spine2'
+
+- name: Dump show ip bgp neighbor on Leaf1
+  command: bash -c "vtysh -c 'show ip bgp neighbor {{ item }}'"
+  with_items:
+     - "{{ interfaces[ansible_host]['neiIPAddress1'] }}"
+     - "{{ interfaces[ansible_host]['neiIPAddress2'] }}"
+  register: output_show_bgp_neighbor
+  when: inventory_hostname == 'Leaf1'
+
+- name: Verify the BGP adjacency is up on Leaf1
+  assert:
+    that:
+      - "'BGP state = Established' in output_show_bgp_neighbor.results[0].stdout"
+      - "'BGP state = Established' in output_show_bgp_neighbor.results[1].stdout"
+    msg: BGP adjacency is not up
+  when: inventory_hostname == 'Leaf1'
+
+- name: Dump show ip bgp neighbor on Leaf2
+  command: bash -c "vtysh -c 'show ip bgp neighbor {{ item }}'"
+  with_items:
+     - "{{ interfaces[ansible_host]['neiIPAddress1'] }}"
+     - "{{ interfaces[ansible_host]['neiIPAddress2'] }}"
+  register: output_show_bgp_neighbor
+  when: inventory_hostname == 'Leaf2'
+
+- name: Verify the BGP adjacency is up on Leaf2
+  assert:
+    that:
+      - "'BGP state = Established' in output_show_bgp_neighbor.results[0].stdout"
+      - "'BGP state = Established' in output_show_bgp_neighbor.results[1].stdout"
+    msg: BGP adjacency is not up
+  when: inventory_hostname == 'Leaf2'
+
+- name: Dump show ip bgp neighbor on Spine1
+  command: bash -c "vtysh -c 'show ip bgp neighbor {{ item }}'"
+  with_items:
+     - "{{ interfaces[ansible_host]['neiIPAddress1'] }}"
+     - "{{ interfaces[ansible_host]['neiIPAddress2'] }}"
+  register: output_show_bgp_neighbor
+  when: inventory_hostname == 'Spine1'
+
+- name: Verify the BGP adjacency is up on Spine1
+  assert:
+    that:
+      - "'BGP state = Established' in output_show_bgp_neighbor.results[0].stdout"
+      - "'BGP state = Established' in output_show_bgp_neighbor.results[1].stdout"
+    msg: BGP adjacency is not up
+  when: inventory_hostname == 'Spine1'
+
+- name: Dump show ip bgp neighbor on Spine2
+  command: bash -c "vtysh -c 'show ip bgp neighbor {{ item }}'"
+  with_items:
+     - "{{ interfaces[ansible_host]['neiIPAddress1'] }}"
+     - "{{ interfaces[ansible_host]['neiIPAddress2'] }}"
+  register: output_show_bgp_neighbor
+  when: inventory_hostname == 'Spine2'
+
+- name: Verify the BGP adjacency is up on Spine2
+  assert:
+    that:
+      - "'BGP state = Established' in output_show_bgp_neighbor.results[0].stdout"
+      - "'BGP state = Established' in output_show_bgp_neighbor.results[1].stdout"
+    msg: BGP adjacency is not up
+  when: inventory_hostname == 'Spine2'
+
+- name: Generate 500 routes from Quagga BGP-Copy the bash script to Leaf2
+  template: src=files/quagga_route_gen.sh dest=/usr/bin/quagga_route_gen.sh mode=0777 
+  when: inventory_hostname == 'Leaf2'
+
+- name: Run the script to generate 500 routes
+  script: files/quagga_route_gen.sh
+  when: inventory_hostname == 'Leaf2'
+
+- name: Restart Quagga
+  service:
+    name: quagga
+    state: restarted
+  when: inventory_hostname == 'Leaf2'
+
+- pause:
+    seconds: 60
+
+- name: Dump the routes from kernel on Leaf1
+  command: bash -c "route -n| grep 99.1. | awk '{print $1}'"
+  register: dump_routes_kernel
+  when: inventory_hostname == 'Leaf1'
+
+- name: Verify the routes gets learned on Leaf1
+  assert:
+    that: 
+      - "'{{ item }}' in variable"
+  with_items:
+      - "{{ dump_routes_kernel.stdout_lines }}"
+  when: inventory_hostname == 'Leaf1'
+
+- name: Dump the other set of routes from kernel on Leaf1
+  command: bash -c "route -n| grep 99.2. | awk '{print $1}'"
+  register: dump_routes_kernel_other
+  when: inventory_hostname == 'Leaf1'
+
+- name: Verify the other set of routes gets learned on Leaf1
+  assert:
+    that:
+      - "'{{ item }}' in variable1"
+  with_items:
+      - "{{ dump_routes_kernel_other.stdout_lines }}"
+  when: inventory_hostname == 'Leaf1'
+
+# Run this playbook to check the routes and Traffic forwarding on ECMP paths
+# This playbook verifies the routes in NAS as well as the data traffic
+- include: traffic_ver_ECMP.yml 
+
+- name: Shut one of the ECMP path and check the traffic receives
+  shell: "vtysh -c 'config t' -c 'interface {{ interfaces[ansible_host]['interface1'] }}' -c 'shutdown'"
+  when: inventory_hostname == 'Leaf1'
+
+- pause:
+    seconds: 60
+
+# Run this playbook to check the traffic forwarding on One path in ECMP
+# This playbook verifies the routes in NAS as well as the data traffic
+- include: traffic_ver_shut_ECMP.yml
+
+- name: Bring up the interface and check the ECMP paths 
+  shell: "vtysh -c 'config t' -c 'interface {{ interfaces[ansible_host]['interface1'] }}' -c 'no shutdown'"
+  when: inventory_hostname == 'Leaf1'
+
+- pause:
+    seconds: 120
+
+# Run this playbook to check the ECMP paths traffic forwarding again after the link is up
+# This playbook verifies the routes in NAS as well as the data traffic
+- include: traffic_ver_ECMP.yml
