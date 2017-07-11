@@ -143,7 +143,7 @@
 
     - block:
       - name: SEND - cps_get_oid.py base-pas/entity. Check the PAS entity returning object. Failure here means CPS get on PAS not working. Debug below.
-        command: /usr/bin/cps_get_oid.py base-pas/entity
+        command: /usr/bin/cps_get_oid.py observed base-pas/entity
         become: true
         register: result_pas_getcps
         changed_when: False
@@ -170,7 +170,7 @@
 
     - block:
       - name: SEND - cps_get_oid.py base-pas/chassis. Check the PAS entity returning object. Failure here means CPS get on PAS not working. Debug below.
-        command:  /usr/bin/cps_get_oid.py base-pas/chassis
+        command:  /usr/bin/cps_get_oid.py observed base-pas/chassis
         become: true
         register: result_pas_getcps
         changed_when: False
@@ -196,7 +196,7 @@
         when: "Key or Object not in cps get"
 
     - name: SEND - systemctl -l status opx-acl-init
-      command: /bin/systemctl -l status opx-acl-init
+      command: /bin/systemctl -l status opx-acl-init | grep SUCCESS
       become: true
       register: result_getacl
       changed_when: False
@@ -353,58 +353,6 @@
       assert:
         that: "'' in result_getcps1.stdout"
         msg: "Route 0x{{test_route2hex}} is found in NAS. CPS deletion failed"
-
-    - name: SEND -Configure MAC entries using CPS
-      command: bash -c "ip link set dev {{test_int}} up; /usr/bin/cps_config_mac.py create mac {{test_mac}} port {{test_int}} vlan {{test_vlan}}"
-      become: true
-      ignore_errors: yes
-      register: result_cpsmacadd
-      changed_when: False
-    - name: INFO - Any messages printed during route configuration are shown here
-      debug:
-        msg: "{{result_cpsmacadd.stdout_lines}}"
-    - name: VERIFY- Check whether the CPS get succeeded
-      assert:
-        that: "'base-mac/table' in result_cpsmacadd.stdout"
-        msg: CPS set failed here
-    - name: SEND -CPS GET from NAS
-      command:  /usr/bin/cps_config_mac.py show
-      become: true
-      register: result_getmaccps
-      changed_when: False
-      ignore_errors: yes
-    - name: INFO- Dumping MAC Entries
-      debug:
-        msg: "{{result_getmaccps.stdout_lines}}"
-    - name: VERIFY - Check if the mac {{test_mac}} exists. If it does not have MAC, then CPS get failed.
-      assert:
-        that: "'base-mac/query/mac-address = {{test_mac}}' in result_getmaccps.stdout"
-        msg: "MAC {{test_mac}} not found in NAS"
-
-    - name: SEND - Delete mac entries using CPS
-      command: bash -c "/usr/bin/cps_config_mac.py delete vlan {{test_vlan}} port {{test_int}} mac {{test_mac}}"
-      become: true
-      ignore_errors: yes
-      register: result_cpsmacdel
-      changed_when: False
-    - name: VERIFY- Check whether the CPS set succeeded to delete entries
-      assert:
-        that: "'success' in result_cpsmacdel.stdout"
-        msg: CPS set failed to delete entries here
-    - name: SEND -CPS GET from NAS
-      command:  /usr/bin/cps_config_mac.py show 
-      become: true
-      register: result_getmaccps
-      changed_when: False
-      ignore_errors: yes
-    - name: INFO - MAC Entries from NAS
-      debug:
-        msg: "{{result_getmaccps.stdout_lines}}"
-    - name: VERIFY - Check if the mac {{test_mac}} does not exists. If it exists, then CPS set failed to delete entries
-      assert:
-        that: "'base-mac/query/mac-address = {{test_mac}}' not in result_getmaccps.stdout"
-        msg: "MAC {{test_mac}} found in NAS, check cps set to delete entries"
-
 
     - name: SEND -Configure VLAN and add untagged ports using CPS set
       command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/cps_config_vlan.py --add --id {{test_vlan}} --port {{test_int}},{{test_int1}}"
