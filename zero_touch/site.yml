@@ -6,39 +6,38 @@
 
 # This role is used to check the prompt in OPX or ONIE
 
-- hosts: "{{hostname}}"
+- hosts: "{{onie_hostname}}"
+  gather_facts: no
+  become: yes
   roles:
     - {role: check_opx_onie,tags: 'zero_touch'}
 
-# This role is used to install all the packages after the OPX is installed
-
-- hosts: Leaf1
-  become: true
-  gather_facts: no
-  pre_tasks:
-    - name: Update the repo list
-      raw: apt-get update
-      tags: zero_touch
-
-    - name: Install python
-      raw: apt-get -y install python-simplejson
-      tags: zero_touch
-  roles:
-    - {role: pkg_install, tags: 'zero_touch'}
 
 # This role is to upgrade the packages instead of full blown installation
 
-- hosts: cr1_linux
+- hosts: "{{hostname}}"
   become: true
-  vars_files:
-    - roles/pkg_upgrade/vars/main.yml
   roles:
     - {role: pkg_upgrade, tags: ['upgrade', 'smoke_test']}
 
-# This role is to run the smoke test after the switch comes up with the packages installed
 
-- hosts: Leaf2
+
+
+# This role is used to run the smoke test. Pre-task is to check the system status before triggering smoke test
+
+- hosts: "{{hostname}}"
   become: true
+  pre_tasks:
+
+    - name: Check the system state running
+      shell: opx-show-system-status
+      register: system_status_result
+      until: "'System State:  running' in system_status_result.stdout"
+      retries: 120
+      delay: 1
+      tags: zero_touch
+      ignore_errors: yes
+
   vars_files:
     - roles/opx_smoke_test/vars/opx_vars.yml
   roles:

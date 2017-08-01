@@ -13,23 +13,19 @@ hosts- Hosts file to manage the hosts with hostname, userid and password/key
 site.yml - This yml file calls all the yml files to install OPX NOS and run smoke test
 roles/check_opx_onie - This role contains the yml file to check whether the switch in OPX prompt or ONIE prompt, if in OPX prompt it will execute 
                        onie_img_install role. It will install the OPX NOS.
-roles/onie_img_install - This role assumes the switch in OPX prompt, reboot the switch and bring to ONIE prompt. After it comes to ONIE prompt, it will 
-                         execute check_opx_onie role to install OPX NOS
-roles/pkg_install - This role will install all the packages NAS, PAS and CPS.
+roles/onie_img_install - This role assumes the switch in OPX prompt, reboot the switch and bring to ONIE prompt. After it comes to ONIE prompt, it will execute check_opx_onie role to install OPX NOS
 roles/opx_smoke_test- This will run the smoke test to test PAS,NAS and CPS
 
 # Variable files
-roles/check_opx_onie/vars/main.yml - This file contains the variables for the role check_opx_onie
 roles/opx_smoke_test/vars/opx_vars.yml - This file contains the variables for the role opx_smoke_test
 
 # Topology
-The smoke test runs on the single node/swtich.
+The smoke test can be run on multiple nodes.
 
 # Playbook functions
 - Playbook(check_opx_onie role) will check whether the switch in ONIE prompt or OPX prompt. 
 - If the switch in ONIE prompt(check_opx_onie role), it will uninstall the existing OS and install OPX.
 - If the switch in OPX prompt(onie_img_install role), it will reboot the switch to ONIE, uninstall the existing OS and install OPX
-- After the OPX is installed, it will install the packages using "apt-get install opx-dell-s6000" and reboot the switch
 - Once the switch is up, opx_smoke_test will be triggered to run the smoke test
 
 # Smoke Test Test Cases
@@ -68,11 +64,9 @@ The smoke test runs on the single node/swtich.
 # How to run smoke test
 
 1. Download ansible in any server/laptop(see Ansible Installation).
-2. Edit the hosts file with the details on management IP, username, password/key (For ONIE, there needs to be seperate host with username as root, check the   sample hosts file)
-3. Run the playbook with the command where 'hostname' is the hostname for OPX installation from ONIE, IMG_LOCATION is the location where the OPX image is located and IMG_NAME is the name of the file which is copied to the tmp directory of ONIE
+2. Edit the hosts file with the details on management IP, username, password/key (For onie_hostname, there needs to be seperate host with username as root and password as empty, hostname which has default admin/admin username and password, check the sample hosts file)
+3. Run the playbook with the command where 'onie_hostname' is the hostname for OPX installation from ONIE, 'hostname' is the OPX hostname, IMG_LOCATION is the location where the OPX image is located and IMG_NAME is the name of the file which is copied to the tmp directory of ONIE
 
-     'ansible-playbook site.yml -i hosts --extra-vars "IMG_LOCATION=http://dell-networking.bintray.com/opx-images/opx-onie-installer_1.1_amd64.bin IMG_NAME=opx_image hostname=ONIE_Leaf1" -vv'
+     'ansible-playbook site.yml -i hosts --extra-vars "IMG_LOCATION=http://dell-networking.bintray.com/opx-images/opx-onie-installer_1.1_amd64.bin IMG_NAME=opx_image onie_hostname=ONIE_Leaf1 hostname=Leaf1" -vv'
 
 see opx-test for all the files.
-
-

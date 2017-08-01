@@ -19,22 +19,10 @@
       "password": "admin\r\n sudo -i\n"
       "password for admin:": "admin\r\n"
       root@\w+: "/bin/mkdir /mnt/onie-boot\r\n mount /dev/disk/by-label/ONIE-BOOT /mnt/onie-boot\r\n apt-get -y install grub2-common\r\n grub-reboot --boot-directory=/boot ONIE\r\n /mnt/onie-boot/onie/tools/bin/onie-boot-mode -o install\r\n reboot\n"
-    timeout: 300
+    timeout: 60
   when: "'root@' in debug_telnet.stdout"
   register: reboot_opx
   ignore_errors: true
-
-- pause:
-    minutes: 2
-
-- name: Check whether the switch comes back up after reboot. THIS TASK MAY TAKE SOME TIME!!!!
-  expect:
-    command: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{{ inventory_hostname }}
-    responses:
-      "ONIE:~ #": "ls\r\n ONIE:~ #\n" 
-    timeout: 60
-  ignore_errors: yes
-  when: "'root@' in debug_telnet.stdout"
 
 - name: wait for switch to come back up. THIS TASK MAY TAKE SOME TIME!!!!
   local_action: wait_for host={{ inventory_hostname }} port=22 delay=30 timeout=300
