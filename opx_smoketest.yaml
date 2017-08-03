@@ -55,6 +55,7 @@
   tasks:
 
     - name: SEND - opx_logging_cli disable all
+      become: true
       command: /usr/bin/opx_logging_cli disable all
       changed_when: False
 
@@ -276,14 +277,6 @@
         fail:
         when: "{{test_route2hex}} not in result_getcps1.stdout_lines[4]"
 
-    - name: SEND - Unconfig static route in kernel 
-      command: bash -c "sysctl -w net.ipv4.ip_forward=1; ip route del {{test_route2}}/{{test_prefix}} scope global nexthop via {{test_via}}; ip addr flush dev {test_int}}; ip link set dev {{test_int}} down"
-      become: true
-      register: result_getkrouteunconfig
-    - name: INFO - Issues during kernel route unconfig, if any, will be shown here 
-      debug:
-        msg: "{{result_getkrouteunconfig.stdout_lines}}"
-
     - name: SEND -Configure Static route through CPS ADD
       command: bash -c "ip link set dev {{test_int}} up; /usr/bin/cps_config_route.py --add --ip {{test_route2}} --nh {{test_via}}"
       become: true
@@ -444,6 +437,14 @@
       assert:
         that: "'' in result_getvlancps.stdout"
         msg: "VLAN {{test_vlan}} found in NAS"
+
+    - name: SEND - Unconfig ip address in kernel
+      command: bash -c "sysctl -w net.ipv4.ip_forward=1; ip addr flush dev {{test_int}}; ip addr flush dev {{test_int1}}; ip link set dev {{test_int}} down; ip link set dev {{test_int1}} down"
+      become: true
+      register: result_getkrouteunconfig
+    - name: INFO - Issues during kernel route unconfig, if any, will be shown here
+      debug:
+          msg: "{{result_getkrouteunconfig.stdout_lines}}"
 
     - name: SEND - systemctl is-system-running
       command: systemctl is-system-running
