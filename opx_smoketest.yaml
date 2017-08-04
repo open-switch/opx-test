@@ -349,7 +349,7 @@
         msg: "Route 0x{{test_route2hex}} is found in NAS. CPS deletion failed"
 
     - name: SEND -Configure VLAN and add untagged ports using CPS set
-      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/cps_config_vlan.py --add --id {{test_vlan}} --port {{test_int}},{{test_int1}}"
+      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/cps_config_vlan.py --add --id {{test_vlan}} --port {{test_int}},{{test_int1}} --vlantype 1"
       become: true
       ignore_errors: yes
       register: result_cpsvlanadd
