@@ -165,8 +165,9 @@
     when: "Key or Object not in cps get"
 
 - name: SEND - systemctl -l status opx-acl-init
-  shell: /bin/systemctl status opx-acl-init | grep SUCCESS
+  shell: /bin/systemctl status opx-acl-init 
   become: true
+  ignore_errors: yes
   register: result_getacl
   changed_when: False
 - name: INFO - ACL INIT status
@@ -174,8 +175,8 @@
     msg: "{{result_getacl.stdout_lines}}"
 - name: VERIFY - Check if ACL INIT is loaded and exited successfully
   assert:
-    that: "'status=0/SUCCESS' in result_getacl.stdout"
-    msg:  "Expected SUCCESS status for ACL INIT SERVICE."
+    that: "'Loaded: loaded' in result_getacl.stdout"
+    msg:  "Expected LOADED status for ACL INIT SERVICE."
 
 - name: SEND - systemctl -l status opx-qos-init
   command: /bin/systemctl -l status opx-qos-init
