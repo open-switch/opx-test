@@ -230,9 +230,9 @@
   - name: INFO - NAS routes (if empty, then configuration was not applied or there is some bug) 
     debug:
       msg: "{{result_getcps1.stdout_lines}}"
-  - name: VERIFY - Check if the route 0x{{test_route2hex}} existse. If result_getcps1.stdout_lines[4] does not have an element, then the error is because the result of the previous command was empty. It could be a bug.
+  - name: VERIFY - Check if the route 0x{{test_route2hex}} existse. If result_getcps1.stdout_lines does not have an element, then the error is because the result of the previous command was empty. It could be a bug.
     assert:
-      that: "'base-route/obj/entry/route-prefix = {{test_route2hex}}' == result_getcps1.stdout_lines[4]"
+      that: "'base-route/obj/entry/route-prefix = {{test_route2hex}}' in result_getcps1.stdout_lines"
       msg: "Route 0x{{test_route2hex}} not found"
   rescue:
   - name: DEBUG - Collecting data because the Test Failed on last VERIFY step
@@ -244,7 +244,7 @@
       msg: "{{result_debug_cpsfail}}"
   - name: FAIL - Test Failed on last VERIFY step. Exit here, after collecting debug data above 
     fail:
-    when: "{{test_route2hex}} not in result_getcps1.stdout_lines[4]"
+    when: "{{test_route2hex}} not in result_getcps1.stdout_lines"
 
 - name: SEND - Unconfig static route in kernel 
   command: bash -c "ip route del {{test_route2}}/{{test_prefix}} scope global nexthop via {{test_via}}"
@@ -284,9 +284,9 @@
 - name: INFO - NAS routes (if empty, then configuration was not applied or there is some bug)
   debug:
     msg: "{{result_getcps1.stdout_lines}}"
-- name: VERIFY - Check if the route 0x{{test_route2hex}} exists. If result_getcps1.stdout_lines[4] does not have an element, then the error is because the result of the previous command was empty. It could be a bug.
+- name: VERIFY - Check if the route 0x{{test_route2hex}} exists. If result_getcps1.stdout_lines does not have an element, then the error is because the result of the previous command was empty. It could be a bug.
   assert:
-    that: "'base-route/obj/entry/route-prefix = {{test_route2hex}}' == result_getcps1.stdout_lines[4]"
+    that: "'base-route/obj/entry/route-prefix = {{test_route2hex}}' in result_getcps1.stdout_lines"
     msg: "Route 0x{{test_route2hex}} not found"
    
 - name: SEND -Unconfigure Static route through CPS Delete
@@ -319,7 +319,7 @@
 - name: INFO - NAS routes should be empty
   debug:
     msg: "{{result_getcps1.stdout_lines}}"
-- name: VERIFY - Check if the route 0x{{test_route2hex}} does not exists. If result_getcps1.stdout_lines[4] does have an element, then the error is CPS deletion is not working 
+- name: VERIFY - Check if the route 0x{{test_route2hex}} does not exists. If result_getcps1.stdout_lines does have an element, then the error is CPS deletion is not working 
   assert:
     that: "'' in result_getcps1.stdout"
     msg: "Route 0x{{test_route2hex}} is found in NAS. CPS deletion failed"
