@@ -144,7 +144,7 @@
 
     - block:
       - name: SEND - cps_get_oid.py base-pas/entity. Check the PAS entity returning object. Failure here means CPS get on PAS not working. Debug below.
-        command: /usr/bin/cps_get_oid.py observed base-pas/entity
+        command: /usr/bin/cps_get_oid.py -qua observed base-pas/entity
         become: true
         register: result_pas_getcps
         changed_when: False
@@ -171,7 +171,7 @@
 
     - block:
       - name: SEND - cps_get_oid.py base-pas/chassis. Check the PAS entity returning object. Failure here means CPS get on PAS not working. Debug below.
-        command:  /usr/bin/cps_get_oid.py observed base-pas/chassis
+        command:  /usr/bin/cps_get_oid.py -qua observed base-pas/chassis
         become: true
         register: result_pas_getcps
         changed_when: False
