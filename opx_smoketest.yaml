@@ -1,6 +1,6 @@
 ---
 
-##### Ansible Playbook for Smoketest on Dell OS10 Base images
+##### Ansible Playbook for Smoketest on Dell OPX images
 ##### (c) 2017 Dell Technologies
 
 # Prerequisites: 
@@ -8,7 +8,7 @@
 #  Prepare an OPX device, installing the desired target image and bringing up eth0 (Ansible will SSH to this interface)
 #  Update the inventory file with IP address and SSH login credentials.
 #  If running smoketest on a hardware platform, consider that the case SmokeTest_Show_Transceivers requires at least one QSFP/SFP+. If not available, just comment out this case (with #)
-#  This playbook has been verified on Ansible v2.2.
+#  This playbook has been verified on Ansible v2.3.
 
 # Usage:
 #  Execute as follows: ansible-playbook opx_smoketest.yaml -i inventory.yaml --extra-vars "dut=baseHW"(dut variable is mentioned in opx_smoketest.yaml file under hosts). This line assumes that the playbook and inventory files are on the directory where you execute andible-playbook). Insetad of baseHW, write the device name defined in the inventory file. More information about inventory configuration in http://docs.ansible.com/ansible/intro_inventory.html.
@@ -446,19 +446,31 @@
     - name: INFO - Issues during kernel route unconfig, if any, will be shown here
       debug:
           msg: "{{result_getkrouteunconfig.stdout_lines}}"
-
-    - name: SEND - systemctl is-system-running
-      command: systemctl is-system-running
-      become: true
-      register: result_getservicestat
-      changed_when: False
-    - name: INFO - Systemctl service status
-      debug:
-        msg: "{{result_getservicestat.stdout_lines}}"
-    - name: VERIFY - Check Systemctl service status [SmokeTest_Systemctl]
-      assert:
-        that: "'running' == result_getservicestat.stdout_lines[0]"
-        msg:  "Expected 'running' status."
+    - block:
+      - name: SEND - systemctl is-system-running
+        command: systemctl is-system-running
+        become: true
+        register: result_getservicestat
+        changed_when: False
+      - name: INFO - Systemctl service status
+        debug:
+          msg: "{{result_getservicestat.stdout_lines}}"
+      - name: VERIFY - Check Systemctl service status [SmokeTest_Systemctl]
+        assert:
+          that: "'running' == result_getservicestat.stdout_lines[0]"
+          msg:  "Expected 'running' status."
+      rescue:
+      - name: DEBUG - Collecting data because the Test Failed on last VERIFY step
+        command: systemctl list-units --type=service --state=failed
+        become: true
+        register: result_debugStatus_svc
+        changed_when: False
+      - name: INFO - Debug info collected
+        debug:
+          msg: "{{result_debugStatus_svc.stdout_lines}}"
+      - name: FAIL - Test Failed on last VERIFY step. Exit here, after collecting debug data above
+        fail:
+        when: "'failed' in result_debugStatus_svc.stdout_lines"
 
     - name: SEND - systemctl --all --state=failed list-units
       command: systemctl --all --state=failed list-units
