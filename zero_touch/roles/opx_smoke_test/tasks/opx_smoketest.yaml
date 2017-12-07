@@ -423,19 +423,32 @@
   debug:
     msg: "{{result_getkrouteunconfig.stdout_lines}}"
 
+- block:
+  - name: SEND - systemctl is-system-running
+    command: systemctl is-system-running
+    become: true
+    register: result_getservicestat
+    changed_when: False
+  - name: INFO - Systemctl service status
+    debug:
+      msg: "{{result_getservicestat.stdout_lines}}"
+  - name: VERIFY - Check Systemctl service status [SmokeTest_Systemctl]
+    assert:
+      that: "'running' == result_getservicestat.stdout_lines[0]"
+      msg:  "Expected 'running' status."
+  rescue:
+  - name: DEBUG - Collecting data because the Test Failed on last VERIFY step
+    command: systemctl list-units --type=service --state=failed
+    become: true
+    register: result_debugStatus_svc
+    changed_when: False
+  - name: INFO - Debug info collected
+    debug:
+      msg: "{{result_debugStatus_svc.stdout_lines}}"
+  - name: FAIL - Test Failed on last VERIFY step. Exit here, after collecting debug data above
+    fail:
+    when: "'failed' in result_debugStatus_svc.stdout_lines"
 
-- name: SEND - systemctl is-system-running
-  command: systemctl is-system-running
-  become: true
-  register: result_getservicestat
-  changed_when: False
-- name: INFO - Systemctl service status
-  debug:
-    msg: "{{result_getservicestat.stdout_lines}}"
-- name: VERIFY - Check Systemctl service status [SmokeTest_Systemctl]
-  assert:
-    that: "'running' == result_getservicestat.stdout_lines[0]"
-    msg:  "Expected 'running' status."
 
 - name: SEND - systemctl --all --state=failed list-units
   command: systemctl --all --state=failed list-units
