@@ -451,6 +451,7 @@
     when: "'failed' in result_debugStatus_svc.stdout_lines"
 
 - name: Remove the cloud-init service from AWS
+  become: true
   apt:
     name: cloud-init
     state: absent
