@@ -18,7 +18,7 @@
     responses:
       "password": "admin\r\n sudo -i\n"
       "password for admin:": "admin\r\n"
-      root@\w+: "/bin/mkdir /mnt/onie-boot\r\n mount /dev/disk/by-label/ONIE-BOOT /mnt/onie-boot\r\n apt-get -y install grub2-common\r\n grub-reboot --boot-directory=/boot ONIE\r\n /mnt/onie-boot/onie/tools/bin/onie-boot-mode -o install\r\n reboot\n"
+      root@\w+: "/bin/mkdir /mnt/onie-boot\r\n mount /dev/disk/by-label/ONIE-BOOT /mnt/onie-boot\r\n apt-get -y install grub2-common\r\n grub-reboot --boot-directory=/mnt/boot ONIE\r\n /mnt/onie-boot/onie/tools/bin/onie-boot-mode -o install\r\n reboot\n"
     timeout: 60
   when: "'root@' in debug_telnet.stdout"
   register: reboot_opx
