@@ -97,8 +97,8 @@
     that: "'active (running)' in result_getnasd.stdout_lines[2]"
     msg:  "Expected active (running) status for NASD."
 
-- name: SEND - ifconfig -a | grep HWaddr -c
-  command: bash -c "ifconfig -a | grep HWaddr -c"
+- name: SEND - ifconfig -a | grep BROADCAST -c
+  command: bash -c "ifconfig -a | grep BROADCAST -c"
   become: true
   register: result_getports
   changed_when: False
