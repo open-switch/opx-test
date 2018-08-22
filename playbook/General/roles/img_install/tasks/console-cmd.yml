@@ -1,0 +1,21 @@
+---
+##### Ansible task to send command via OPX's console.
+##### (c) 2018 Dell Technologies
+
+- name: send command
+  delegate_to: localhost
+  become: no
+  expect:
+    command: telnet {{ ansible_console }} {{ console_port }} -e {{ telnet_esc }}
+    timeout: "{{ timeout|default(30) }}"
+    responses: "{{ exp | default({}) | combine(default_exp) | combine(extra_exp) }}"
+    echo: no
+  register: output
+
+- name: STDOUT the output
+  debug:
+    msg: "{{output.stdout}}"
+
+- fail:
+   msg: System Crashed {{inventory_hostname}}
+  when: 'output.stdout is search("Emergency Remount R/O")'

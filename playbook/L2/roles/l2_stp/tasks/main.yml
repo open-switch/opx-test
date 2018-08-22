@@ -1,0 +1,3 @@
+---
+# tasks file for l2_stp
+- include: l2_stp.yml

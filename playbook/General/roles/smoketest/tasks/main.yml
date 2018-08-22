@@ -1,0 +1,3 @@
+---
+#- include: smoke_test.yaml
+- include: smoketest.yaml

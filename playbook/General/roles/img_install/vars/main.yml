@@ -1,0 +1,33 @@
+---
+# vars file for img_install
+
+set_eth0: |
+  grep -q -F 'source-directory /etc/network/interfaces.d' /etc/network/interfaces || echo 'source-directory /etc/network/interfaces.d' >> /etc/network/interfaces
+  grep -q -F 'nameserver' /etc/resolv.conf || echo 'nameserver {{nameserver}}' >> /etc/resolv.conf
+  ifconfig eth0 | grep 'addr:{{ ansible_host }}' || ifconfig eth0 {{ ansible_host }} netmask {{ ansible_host_netmask }} up
+  ifconfig eth0
+  route add default gateway {{ ansible_host_gateway }}
+  route -n
+  service networking restart
+  ifconfig eth0 {{ ansible_host }} netmask {{ ansible_host_netmask }} up
+  ip route add default via {{ ansible_host_gateway }}
+  ifconfig eth0
+grub_boot_onie: |
+  ln -sf /mnt/boot/grub /boot/grub
+  grub-reboot $(( $( grep menuentry /boot/grub/grub.cfg | grep -n ONIE | cut -d: -f 1 ) - 1 ))
+get_onie_prompt:
+  'Info: ': "onie-discovery-stop"
+  'ONIE:/ #': "\x07c\n"
+set_onie_eth0: |
+  onie-discovery-stop
+  sleep 3
+  ps | grep {networking.sh} | awk '{print $1}' | xargs kill -9
+  sleep 3
+  echo 'nameserver 8.8.8.8' > /etc/resolv.conf
+  ifconfig eth0 {{ ansible_host }} netmask {{ ansible_host_netmask }} up
+  route add default gateway {{ ansible_host_gateway }}
+  ifconfig eth0
+  ip route add default via {{ ansible_host_gateway }}
+  route -n
+nos_install: |
+  onie-nos-install {{ image|default('http://archive.openswitch.net/installers/3.0.0-dev2/Dell-EMC/PKGS_OPX-3.0.0-dev2-installer-x86_64.bin') }}

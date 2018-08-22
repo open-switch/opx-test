@@ -1,0 +1,1490 @@
+---
+
+- block:
+  - name: TC1 - Verify Layer2 flooding/forwarding works on physical port 
+    shell: echo "*****TC1 Verify Layer2 flooding/forwarding works on physical port*****"
+    register: TC1
+  - name: TC1- Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
+    import_tasks: setup.yml
+  - name: TC1 - Configure Vlan {{vlanid}} on the server side and bring up the ports,bridge
+    command: bash -c "brctl addbr br{{vlanid}}; ip link add link {{server_link}} name {{server_link}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{server_link}}.{{vlanid}} up; brctl addif br{{vlanid}} {{server_link}}.{{vlanid}}; ip link set dev {{server_link}} up; ip link set dev br{{vlanid}} up"
+    register: configure_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC1 - Create vlan {{vlanid}} tagged on DUT and TR
+    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}},{{test_int1}},{{test_int2}} -t; ip link set dev br{{vlanid}} up; brctl stp br{{vlanid}} on"
+    register: config_vlan
+    changed_when: false
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - STDOUT the output from the cps_config_vlan command
+    debug:
+      msg: "{{config_vlan.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Verify the resulted output is success or failure
+    assert:
+      that: "'Success' in config_vlan.stdout"
+      msg: "Vlan configuration through CPS failed"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - STDOUT the ip link show command for br{{vlanid}} for DUT and TR
+    command: bash -c "ip link show br{{vlanid}} | awk '{print $8,$9}'"
+    register: status_check_bridge
+  - name: TC1 - STDOUT the output
+    debug:
+      msg: "{{status_check_bridge.stdout_lines}}"
+  - name: TC1 - Verify br{{vlanid}} is up
+    assert:
+      that: "'state UP' in status_check_bridge.stdout"
+      msg: "br{{vlanid}} is not up"
+  - name: TC1 - Change the priority on DUT to select as root bridge
+    command: bash -c "brctl setbridgeprio br{{vlanid}} 0"
+    register: change_root_prio
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Show command to check the priority
+    command: bash -c "brctl show br{{vlanid}} | awk 'FNR == 2 {print $2}'"
+    register: check_prio
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify the priority is 0 on DUT
+    assert:
+      that: "'0000' in check_prio.stdout"
+      msg: "Priority is not changed"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Check DUT is elected as the designated root bridge
+    command: bash -c "brctl showstp br{{vlanid}} | grep designated | awk 'FNR == 2 {print $3}'"
+    register: output_desig
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify DUT is elected as root bridge
+    assert:
+      that: "output_desig.stdout == check_prio.stdout"
+      msg: "DUT is not elected as root bridge"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Pause to elect DUT as designated root bridge(STP Convergence)
+    pause:
+     seconds: 60
+  - name: TC1 - Check the ports are in forwarding state
+    command: bash -c "brctl showstp br{{vlanid}} | awk '$1 ~ /port/ { print $5}'"
+    register: stp_state
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify the state is in forwarding
+    assert:
+      that: "'blocking' not in stp_state.stdout"
+      msg: STP state is in listening or learning state
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Clear the stats on all the ports on DUT to start/verify Data Traffic
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{server_int}}"
+      - "{{test_int1}}"
+      - "{{test_int2}}"
+      - "{{test_int3}}"
+    register: clear_stats
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+         - "'Success' in clear_stats.results[1].stdout"
+         - "'Success' in clear_stats.results[2].stdout"
+         - "'Success' in clear_stats.results[3].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Generate unknown unicast stream from port1 of server1 with vlan id {{vlanid}}
+    script: files/l2mac_unknown_unicast.py --dMAC={{dMAC}} --sMAC={{unknownMAC}} --vlanid={{vlanid}} --dstIP="192.168.1.2" --srcIP="10.1.1.1" --serverint="{{server_link}}.{{vlanid}}"
+    register: traffic_gen_unknown_unicast
+    when: inventory_hostname == "Server1"
+  - name: TC1 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_unknown_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_unknown_unicast.stdout"
+      msg: "Traffic not generated properly"   
+    when: inventory_hostname == "Server1" 
+  - name: TC1 - Pause for 20 seconds for the traffic to go through
+    pause:
+      seconds: 20
+  - name: TC1 - Verify unknown unicast flooding happens on {{test_int1}} and {{test_int2}} on DUT
+    command: bash -c "{{statsCommand}} if_stat {{server_int}} | grep ether-rx-no-errors | awk '{print $3}';{{statsCommand}} if_stat {{test_int1}} | grep ether-tx-no-errors | awk '{print $3}'; {{statsCommand}} if_stat {{test_int2}} | grep ether-tx-no-errors | awk '{print $3}'"
+    register: stat_output
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines[0] | int}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify the traffic is getting flooded on all the ports
+    assert:
+      that:
+        - stat_output.stdout_lines[1] | int >= 100
+        - stat_output.stdout_lines[2] | int >= 100
+      msg: "Traffic is not flooded to the ports"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - show command to check the mac address is learnt on HW
+    command: bash -c "{{switchShell}} 'l2 show'"
+    register: output_l2_show
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the output of l2 show command
+    debug:
+      msg: "{{output_l2_show.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify the mac address is learnt
+    assert:
+      that: "'{{unknownMAC}}' in output_l2_show.stdout"
+      msg: "Unknown MAC address not present in the output"
+    when: inventory_hostname == "DUT"
+  tags: ['Verify_Layer2_Flooding_Forwarding_MAC_learning_works_on_physical_port','sanity']
+  rescue:
+  - name: TC1 - Debug Commands for TC1 for failure analysis 
+    command: bash -c "ifconfig -a; ip addr show; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
+    register: debug_TC1
+  - name: TC1 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC1_l2mac_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC1_l2mac_{{inventory_hostname}}
+      dest: /tmp/TC1_l2mac_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  always:
+  - name: TC1 - Clean up the bridge configurations on DUT and TR
+    command: bash -c "cps_config_vlan.py --del --name br100"
+    register: clean_up_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Check br{{vlanid}} exists on DUT and TR
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Clear the MAC address table on DUT and TR
+    command: bash -c "cps_config_mac.py delete vlan {{vlanid}} dynamic"
+    register: delete_mac_address_table
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - STDOUT the output from the delete MAC
+    debug:
+      msg: "{{delete_mac_address_table.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Verify the output success from the stdout output
+    assert:
+      that: "'success' in delete_mac_address_table.stdout"
+      msg: "success not in the output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Clean up the bridge configurations on server
+    command: bash -c "ifconfig br{{vlanid}} down; brctl delbr br{{vlanid}}; ip link del {{server_link}}.{{vlanid}}"
+    register: clean_up_bridge_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC1 - STDOUT the ifconfig command to check br{{vlanid}} exists
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config_server
+    ignore_errors: yes
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC1 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config_server.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+   
+
+ 
+
+- block:
+  - name: TC2 - Verify Layer2 forwarding works with statically configured MAC on Physical Port
+    shell: echo "*****Verify Layer2 forwarding works with statically configured MAC on physical port*****"
+    register: TC2
+  - name: TC2- Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
+    import_tasks: setup.yml
+  - name: TC2 - Configure Vlan {{vlanid}} on the server side and bring up the ports,bridge
+    command: bash -c "brctl addbr br{{vlanid}}; ip link add link {{server_link}} name {{server_link}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{server_link}}.{{vlanid}} up; brctl addif br{{vlanid}} {{server_link}}.{{vlanid}}; ip link set dev {{server_link}} up; ip link set dev br{{vlanid}} up"
+    register: configure_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC2 - Create vlan {{vlanid}} tagged on DUT and TR
+    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}},{{test_int1}},{{test_int2}} -t; ip link set dev br{{vlanid}} up; brctl stp br{{vlanid}} on"
+    register: config_vlan
+    changed_when: false
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - STDOUT the output from the cps_config_vlan command
+    debug:
+      msg: "{{config_vlan.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Verify the resulted output is success or failure
+    assert:
+      that: "'Success' in config_vlan.stdout"
+      msg: "Vlan configuration through CPS failed"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - STDOUT the ip link show command for br{{vlanid}} for DUT,TR and Servers
+    command: bash -c "ip link show br{{vlanid}} | awk '{print $8,$9}'"
+    register: status_check_bridge
+  - name: TC2 - STDOUT the output
+    debug:
+      msg: "{{status_check_bridge.stdout_lines}}"
+  - name: TC2 - Verify br{{vlanid}} is up
+    assert:
+      that: "'state UP' in status_check_bridge.stdout"
+      msg: "br{{vlanid}} is not up"
+  - name: TC2 - Change the priority on DUT to select as root bridge
+    command: bash -c "brctl setbridgeprio br{{vlanid}} 0"
+    register: change_root_prio
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Show command to check the priority
+    command: bash -c "brctl show br{{vlanid}} | awk 'FNR == 2 {print $2}'"
+    register: check_prio
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify the priority is 0 on DUT
+    assert:
+      that: "'0000' in check_prio.stdout"
+      msg: "Priority is not changed"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Check DUT is elected as the designated root bridge
+    command: bash -c "brctl showstp br{{vlanid}} | grep designated | awk 'FNR == 2 {print $3}'"
+    register: output_desig
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify DUT is elected as root bridge
+    assert:
+      that: "output_desig.stdout == check_prio.stdout"
+      msg: "DUT is not elected as root bridge"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Pause to elect DUT as designated root bridge(STP Convergence)
+    pause:
+     seconds: 60
+  - name: TC2 - Check the ports are in forwarding state
+    command: bash -c "brctl showstp br{{vlanid}} | awk '$1 ~ /port/ { print $5}'"
+    register: stp_state
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify the state is in forwarding
+    assert:
+      that: "'blocking' not in stp_state.stdout"
+      msg: STP state is in listening or learning state
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Configure static MAC {{staticMAC}} on br{{vlanid}} on {{test_int2}} of DUT
+    command: bash -c "cps_config_mac.py create mac {{staticMAC}} port {{test_int2}} vlan {{vlanid}}"
+    register: configure_static_MAC
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify the output of configuring static MAC using CPS is success
+    assert:
+      that: "'success' in configure_static_MAC.stdout"
+      msg: "Configuring static MAC address on br{{vlanid}} failed"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Issue the l2 show command to check whether the mac learnt on {{test_int2}}
+    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{staticMAC}}"
+    register: output_l2_mac_show
+    when: inventory_hostname == "DUT"
+  - name: TC2 - STDOUT the show command {{switchShell}} l2 show
+    debug:
+      msg: "{{output_l2_mac_show.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify the MAC address is learnt on {{test_int2}}
+    assert:
+      that: "'mac={{staticMAC}}' in output_l2_mac_show.stdout"
+      msg: "Static MAC address is not programmed"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Clear the stats on all the ports on DUT and TR
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{server_int}}"
+      - "{{test_int1}}"
+      - "{{test_int2}}"
+      - "{{test_int3}}"
+    register: clear_stats
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+         - "'Success' in clear_stats.results[1].stdout"
+         - "'Success' in clear_stats.results[2].stdout"
+         - "'Success' in clear_stats.results[3].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Generate static unicast stream from {{server_link}} of server1 with vlan id {{vlanid}} and mac address {{staticMAC}}
+    script: files/l2mac_unknown_unicast.py --dMAC={{staticMAC}} --sMAC={{unknownMAC}} --vlanid={{vlanid}} --dstIP="192.168.1.2" --srcIP="10.1.1.1" --serverint="{{server_link}}.{{vlanid}}"
+    register: traffic_gen_known_unicast
+    when: inventory_hostname == "Server1"
+  - name: TC2 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_known_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_known_unicast.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Pause for 20 seconds for the data traffic to go through
+    pause:
+      seconds: 20
+  - name: TC2 - Verify Known unicast traffic received on {{test_int2}} on DUT
+    command: bash -c "{{statsCommand}} if_stat {{server_int}} | grep ether-rx-no-errors | awk '{print $3}';{{statsCommand}} if_stat {{test_int2}} | grep ether-tx-no-errors | awk '{print $3}'; {{statsCommand}} if_stat {{test_int1}} | grep ether-tx-no-errors | awk '{print $3}'"
+    register: known_stat_output
+    when: inventory_hostname == "DUT"
+  - name: TC2 - STDOUT the statistics output
+    debug:
+      msg: "{{known_stat_output.stdout_lines[2] | int}}"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify the traffic is getting transmitted on {{test_int2}} and not on {{test_int1}}
+    assert:
+      that:
+        - known_stat_output.stdout_lines[1] | int >= 100
+        - known_stat_output.stdout_lines[2] | int < 50
+      msg: "Traffic is not flooded to the ports"
+    when: inventory_hostname == "DUT"
+  tags: ['Verify_Layer2_Forwarding_with_Statically_configured_MAC_on_physical_port','sanity']
+  rescue:
+  - name: TC2 - Debug Commands for TC2 for failure analysis
+    command: bash -c "ifconfig -a; ip addr show; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
+    register: debug_TC2
+  - name: TC2 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC2_l2mac_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC2_l2mac_{{inventory_hostname}}
+      dest: /tmp/TC2_l2mac_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  always:
+  - name: TC2 - Clear the MAC address table dynamic entries on DUT and TR
+    command: bash -c "cps_config_mac.py delete vlan {{vlanid}} dynamic"
+    register: delete_mac_address_table
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - STDOUT the output from the delete MAC
+    debug:
+      msg: "{{delete_mac_address_table.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Verify the output success from the stdout output
+    assert:
+      that: "'success' in delete_mac_address_table.stdout"
+      msg: "success not in the output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Clear the MAC address table static entries on DUT and TR
+    command: bash -c "cps_config_mac.py delete vlan {{vlanid}} static"
+    register: delete_mac_address_table_static
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - STDOUT the output from the delete MAC
+    debug:
+      msg: "{{delete_mac_address_table_static.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Verify the output success from the stdout output
+    assert:
+      that: "'success' in delete_mac_address_table_static.stdout"
+      msg: "success not in the output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Clean up the bridge configurations on DUT and TR
+    command: bash -c "cps_config_vlan.py --del --name br100"
+    register: clean_up_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Check br{{vlanid}} exists on DUT and TR
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Clean up the bridge configurations on server
+    command: bash -c "ifconfig br{{vlanid}} down; brctl delbr br{{vlanid}}"
+    register: clean_up_bridge_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC2 - STDOUT the ifconfig command to check br{{vlanid}} exists
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config_server
+    ignore_errors: yes
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC2 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config_server.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+
+ 
+
+- block:
+  - name: TC3 - Verify Layer 2 forwarding works on LACP Portchannel
+    shell: echo "*****Verify Layer 2 forwarding works on LACP Portchannel*****"
+    register: TC3
+  - name: TC3- Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
+    import_tasks: setup.yml
+  - name: TC3 - Configure LACP PortChannel on DUT and TR
+    command: bash -c "ip link add {{bond_interface}} type bond mode 4 miimon 100; ip link set dev {{bond_interface}} up"
+    register: config_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - STDOUT the output of portchannel
+    command: bash -c "ip link show {{bond_interface}}"
+    register: show_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - STDOUT the statistics output
+    debug:
+      msg: "{{show_portchannel}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Verify bond1 is created
+    assert:
+      that: "'{{bond_interface}}' in show_portchannel.stdout"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Add member ports {{test_int1}} and {{test_int2}} to the {{bond_interface}}
+    command: bash -c "ip link set dev {{test_int1}} down; ip link set dev {{test_int2}} down; ip link set {{test_int1}} master {{bond_interface}}; ip link set {{test_int2}} master {{bond_interface}}"
+    register: config_member_ports_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Bring up the member ports {{test_int1}},{{test_int2}} and {{bond_interface}}
+    command: bash -c "ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; ip link set dev {{bond_interface}} up"
+    register: bring_up_member_ports_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - STDOUT the show commands to check the member ports {{test_int1}},{{test_int2}} are inside the {{bond_interface}}
+    command: bash -c "ip link show {{test_int1}}; ip link show {{test_int2}}"
+    register: show_member_ports
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - STDOUT the output
+    debug:
+      msg: "{{show_member_ports.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Verify the member ports {{test_int1}} and {{test_int2}} are in {{bond_interface}}
+    assert:
+      that:
+        - "'SLAVE' in show_member_ports.stdout_lines[0]"
+      msg: "Member Ports are not added to {{bond_interface}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Verify the member ports interfaces are UP
+    assert:
+      that:
+        - "'state UP' in show_member_ports.stdout_lines[0]"
+      msg: "Member ports are not up"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Configure Vlan {{vlanid}} on the server side and bring up the ports,bridge
+    command: bash -c "brctl addbr br{{vlanid}}; ip link add link {{server_link}} name {{server_link}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{server_link}}.{{vlanid}} up; brctl addif br{{vlanid}} {{server_link}}.{{vlanid}}; ip link set dev {{server_link}} up; ip link set dev br{{vlanid}} up"
+    register: configure_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC3 - Create vlan {{vlanid}} tagged on DUT and TR
+    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}} -t; brctl stp br{{vlanid}} on; ip link set dev br{{vlanid}} up"
+    register: config_vlan
+    changed_when: false
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Verify the CPS configuration of br{{vlanid}} is success
+    assert:
+      that: "'Success' in config_vlan.stdout_lines[0]"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Issue the show command to check br{{vlanid}} exists
+    command: bash -c "ip link show br{{vlanid}}"
+    register: show_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - STDOUT the output from the cps_config_vlan command
+    debug:
+      msg: "{{show_bridge.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Verify the resulted output is success or failure
+    assert:
+      that: "'br{{vlanid}}' in show_bridge.stdout"
+      msg: "Vlan configuration failed"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Add LACP port-channel {{bond_interface}} to br{{vlanid}}
+    command: bash -c "ip link add link {{bond_interface}} name {{bond_interface}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{bond_interface}}.{{vlanid}} up; brctl addif br{{vlanid}} {{bond_interface}}.{{vlanid}}"
+    register: add_portchannel_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Issue the show command for br{{vlanid}}
+    command: bash -c "brctl show br{{vlanid}}"
+    register: show_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - STDOUT the show command for br{{vlanid}}
+    debug:
+      msg: "{{show_bridge.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Verify {{bond_interface}} is added to the br{{vlanid}}
+    assert:
+      that: "'{{bond_interface}}.{{vlanid}}' in show_bridge.stdout"
+      msg: "{{bond_interface}} is not added to the br{{vlanid}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - STDOUT the ip link show command for br{{vlanid}} for server
+    command: bash -c "ip link show br{{vlanid}} | awk '{print $8,$9}'"
+    register: status_check_bridge_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC3 - Verify br{{vlanid}} is up
+    assert:
+      that: "'state UP' in status_check_bridge_server.stdout_lines[0]"
+      msg: "br{{vlanid}} is not up"
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC3 - Pause for the STP convergence
+    pause: 
+     seconds: 30
+  - name: TC3 - STDOUT the ip link show command for br{{vlanid}} for DUT and TR
+    command: bash -c "ip link show br{{vlanid}} | awk '{print $8,$9}'"
+    register: status_check_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - STDOUT the output
+    debug:
+      msg: "{{status_check_bridge.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Verify br{{vlanid}} is up
+    assert:
+      that: "'state UP' in status_check_bridge.stdout"
+      msg: "br{{vlanid}} is not up"   
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR") 
+  - name: TC3 - Change the priority on DUT to select as root bridge
+    command: bash -c "brctl setbridgeprio br{{vlanid}} 0"
+    register: change_root_prio
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Show command to check the priority
+    command: bash -c "brctl show br{{vlanid}} | awk 'FNR == 2 {print $2}'"
+    register: check_prio
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Verify the priority is 0 on DUT
+    assert:
+      that: "'0000' in check_prio.stdout"
+      msg: "Priority is not changed"
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Check DUT is elected as the designated root bridge
+    command: bash -c "brctl showstp br{{vlanid}} | grep designated | awk 'FNR == 2 {print $3}'"
+    register: output_desig
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Verify DUT is elected as root bridge
+    assert:
+      that: "output_desig.stdout == check_prio.stdout"
+      msg: "DUT is not elected as root bridge"
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Pause to elect DUT as designated root bridge(STP Convergence)
+    pause:
+     seconds: 60
+  - name: TC3 - Check the ports are in forwarding state
+    command: bash -c "brctl showstp br{{vlanid}} | awk '$1 ~ /port/ { print $5}'"
+    register: stp_state
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Verify the state is in forwarding
+    assert:
+      that: "'blocking' not in stp_state.stdout"
+      msg: STP state is in listening or learning state
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Clear the stats on all the ports on DUT and TR
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{server_int}}"
+      - "{{test_int1}}"
+      - "{{test_int2}}"
+      - "{{test_int3}}"
+    register: clear_stats
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+         - "'Success' in clear_stats.results[1].stdout"
+         - "'Success' in clear_stats.results[2].stdout"
+         - "'Success' in clear_stats.results[3].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Generate unknown unicast stream from {{server_link}} with vlan id {{vlanid}} to DUT
+    script: files/l2mac_unknown_unicast.py --dMAC={{dMAC}} --sMAC={{unknownMAC}} --vlanid={{vlanid}} --dstIP="192.160.1.1" --srcIP="192.168.1.1" --serverint="{{server_link}}.{{vlanid}}"
+    register: traffic_gen_unknown_unicast
+    when: inventory_hostname == "Server1"
+  - name: TC3 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_unknown_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_unknown_unicast.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Pause for 20 seconds for the data traffic to go through
+    pause:
+      seconds: 20
+  - name: TC3 - Verify VLAN flooding happened on TR {{server_int}} port connected to server
+    command: bash -c "{{statsCommand}} if_stat {{server_int}} | grep ether-tx-no-errors | awk '{print $3}'"
+    register: stat_output_TR
+    when: inventory_hostname == "TR"
+  - name: STDOUT the statistics output
+    debug:
+      msg: "{{stat_output_TR.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC3 - Verify the traffic is flooded on to port {{server_int}} on TR
+    assert:
+      that: stat_output_TR.stdout_lines[0] | int >= 100
+      msg: "Traffic is not flooded on TR"
+    when: inventory_hostname == "TR"
+  - name: TC3 - Issue the l2 show command to check whether the mac learnt on {{test_int2}} on DUT
+    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{unknownMAC}}"
+    register: output_l2_mac_show
+    when: inventory_hostname == "DUT"
+  - name: TC3 - STDOUT the show command {{switchShell}} l2 show
+    debug:
+      msg: "{{output_l2_mac_show.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Verify the MAC address is learnt on {{test_int2}}
+    assert:
+      that: "'mac={{unknownMAC}}' in output_l2_mac_show.stdout"
+      msg: "Unknown MAC address is not programmed"
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Clear the stats on all the ports on DUT
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{server_int}}"
+      - "{{test_int1}}"
+      - "{{test_int2}}"
+      - "{{test_int3}}"
+    register: clear_stats
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+         - "'Success' in clear_stats.results[1].stdout"
+         - "'Success' in clear_stats.results[2].stdout"
+         - "'Success' in clear_stats.results[3].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Generate known unicast stream to DUT from TR Server side interface {{server_link}} (TR--->DUT)
+    script: files/l2mac_unknown_unicast.py --dMAC={{unknownMAC}} --sMAC={{staticMAC}} --vlanid={{vlanid}} --dstIP="192.168.1.2" --srcIP="10.1.1.1" --serverint="{{server_link}}.{{vlanid}}"
+    register: traffic_gen_known_unicast
+    when: inventory_hostname == "Server2"
+  - name: TC3 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_known_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server2"
+  - name: TC3 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_known_unicast.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server2"
+  - name: TC3 - Pause for 20 seconds for the data traffic to go through
+    pause:
+      seconds: 20
+  - name: TC3 - Verify known unicast traffic reaches DUT on {{server_int}}
+    command: bash -c "{{statsCommand}} if_stat {{server_int}} | grep ether-tx-no-errors | awk '{print $3}'"
+    register: stat_output
+    when: inventory_hostname == "DUT"
+  - name: TC3 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines[0] | int}}"
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Verify the traffic is getting flooded on all the ports
+    assert:
+      that:
+        - stat_output.stdout_lines[0] | int >= 100
+      msg: "Traffic is not flooded to the ports"
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Issue the l2 show command to check whether the mac learnt on {{bond_interface}} on DUT
+    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1,$4}' | grep {{staticMAC}}"
+    register: output_l2_mac_show
+    when: inventory_hostname == "DUT"
+  - name: TC3 - STDOUT the show command {{switchShell}} l2 show
+    debug:
+      msg: "{{output_l2_mac_show.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Verify the MAC address is learnt on {{bond_interface}}
+    assert:
+      that: "'mac={{staticMAC}} Trunk' in output_l2_mac_show.stdout"
+      msg: "MAC address is not programmed"
+    when: inventory_hostname == "DUT"
+  rescue:
+  - name: TC3 - Debug Commands for TC3 for failure analysis
+    command: bash -c "lsmod | grep bonding; {{system_status}}; ifconfig -a; ip link show {{bond_interface}}; ip addr show; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
+    register: debug_TC3
+  - name: TC3 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC3_l2mac_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC3_l2mac_{{inventory_hostname}}
+      dest: /tmp/TC3_l2mac_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  always:
+  - name: TC3 - Clean up the bridge configurations on DUT and TR
+    command: bash -c "cps_config_vlan.py --del --name br100"
+    register: clean_up_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Check br{{vlanid}} exists on DUT and TR
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Clean up the bridge configurations on server
+    command: bash -c "ifconfig br{{vlanid}} down; brctl delbr br{{vlanid}}"
+    register: clean_up_bridge_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC3 - STDOUT the ifconfig command to check br{{vlanid}} exists
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config_server
+    ignore_errors: yes
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC3 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config_server.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC3 - Clean up the portchannel configurations on DUT and TR
+    command: bash -c "ip link show {{bond_interface}}"
+    register: show_portchannel
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Delete the {{bond_interface}}
+    command: bash -c "cps_config_lag.py --delete --lname {{bond_interface}}"
+    register: delete_lag
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Verify the lag gets deleted
+    assert:
+      that: "'Success' in delete_lag.stdout"
+      msg: "Failed to delete LAG"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+
+
+- block:
+  - name: TC4 - Verify Layer 2 forwarding works on Static Portchannel
+    shell: echo "*****Verify Layer 2 forwarding works on Static Portchannel*****"
+    register: TC4
+  - name: TC4- Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
+    import_tasks: setup.yml
+  - name: TC4 - Configure Static PortChannel on DUT and TR
+    command: bash -c "cps_config_lag.py --create --lname {{bond_interface}}; ip link set dev {{bond_interface}} up"
+    register: config_static_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - STDOUT the output of portchannel
+    command: bash -c "ip link show {{bond_interface}}"
+    register: show_static_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - STDOUT the statistics output
+    debug:
+      msg: "{{show_static_portchannel}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Verify {{bond_interface}} is created
+    assert:
+      that: "'{{bond_interface}}' in show_static_portchannel.stdout"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Add member ports {{test_int1}} and {{test_int2}} to the {{bond_interface}}
+    command: bash -c "cps_config_lag.py --add --lname {{bond_interface}} --port {{test_int1}},{{test_int2}}"
+    register: config_member_ports_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Bring up the member ports {{test_int1}},{{test_int2}} and {{bond_interface}}
+    command: bash -c "ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; ip link set dev {{bond_interface}} up"
+    register: bring_up_member_ports_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - STDOUT the show commands to check the member ports {{test_int1}},{{test_int2}} are inside the {{bond_interface}}
+    command: bash -c "ip link show {{test_int1}}; ip link show {{test_int2}}"
+    register: show_member_ports
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - STDOUT the output
+    debug:
+      msg: "{{show_member_ports.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Verify the member ports {{test_int1}} and {{test_int2}} are in {{bond_interface}}
+    assert:
+      that:
+        - "'SLAVE' in show_member_ports.stdout_lines[0]"
+      msg: "Member Ports are not added to {{bond_interface}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Verify the member ports interfaces are UP
+    assert:
+      that:
+        - "'state UP' in show_member_ports.stdout_lines[0]"
+      msg: "Member ports are not up"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Configure Vlan {{vlanid}} on the server side and bring up the ports,bridge
+    command: bash -c "brctl addbr br{{vlanid}}; ip link add link {{server_link}} name {{server_link}}.{{vlanid}} type vlan id {{vlanid}};ip link set dev {{server_link}}.{{vlanid}} up; brctl addif br{{vlanid}} {{server_link}}.{{vlanid}}; ip link set dev {{server_link}} up; ip link set dev br{{vlanid}} up"
+    register: configure_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC4 - Create vlan {{vlanid}} tagged on DUT and TR
+    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}} -t; brctl stp br{{vlanid}} on; ip link set dev br{{vlanid}} up"
+    register: config_vlan
+    changed_when: false
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Verify the CPS configuration of br{{vlanid}} is success
+    assert:
+      that: "'Success' in config_vlan.stdout_lines[0]"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Issue the show command to check br{{vlanid}} exists
+    command: bash -c "ip link show br{{vlanid}}"
+    register: show_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - STDOUT the output from the cps_config_vlan command
+    debug:
+      msg: "{{show_bridge.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Verify the resulted output is success or failure
+    assert:
+      that: "'br{{vlanid}}' in show_bridge.stdout"
+      msg: "Vlan configuration failed"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Add static port-channel {{bond_interface}} and {{test_int3}} to br{{vlanid}}
+    command: bash -c "cps_config_vlan.py --addport --name br{{vlanid}} --port {{bond_interface}} -t; cps_config_vlan.py --addport --name br{{vlanid}} --port {{test_int3}} -t; ip link set dev {{test_int3}} up"
+    register: add_portchannel_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Issue the show command for br{{vlanid}}
+    command: bash -c "brctl show br{{vlanid}}"
+    register: show_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - STDOUT the show command for br{{vlanid}}
+    debug:
+      msg: "{{show_bridge.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Verify {{bond_interface}} is added to the br{{vlanid}}
+    assert:
+      that: "'{{bond_interface}}.{{vlanid}}' in show_bridge.stdout"
+      msg: "{{bond_interface}} is not added to the br{{vlanid}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - STDOUT the ip link show command for br{{vlanid}} for server
+    command: bash -c "ip link show br{{vlanid}} | awk '{print $8,$9}'"
+    register: status_check_bridge_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC4 - Verify br{{vlanid}} is up
+    assert:
+      that: "'state UP' in status_check_bridge_server.stdout_lines[0]"
+      msg: "br{{vlanid}} is not up"
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC4 - Pause for 30 seconds for STP convergence
+    pause:
+      seconds: 30
+  - name: TC4 - STDOUT the ip link show command for br{{vlanid}} for DUT and TR
+    command: bash -c "ip link show br{{vlanid}} | awk '{print $8,$9}'"
+    register: status_check_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - STDOUT the output
+    debug:
+      msg: "{{status_check_bridge.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Verify br{{vlanid}} is up
+    assert:
+      that: "'state UP' in status_check_bridge.stdout"
+      msg: "br{{vlanid}} is not up"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Change the priority on DUT to select as root bridge
+    command: bash -c "brctl setbridgeprio br{{vlanid}} 0"
+    register: change_root_prio
+    when: inventory_hostname in groups['2host'][0]
+  - name: TC4 - Show command to check the priority
+    command: bash -c "brctl show br{{vlanid}} | awk 'FNR == 2 {print $2}'"
+    register: check_prio
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Verify the priority is 0 on DUT
+    assert:
+      that: "'0000' in check_prio.stdout"
+      msg: "Priority is not changed"
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Check DUT is elected as the designated root bridge
+    command: bash -c "brctl showstp br{{vlanid}} | grep designated | awk 'FNR == 2 {print $3}'"
+    register: output_desig
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Verify DUT is elected as root bridge
+    assert:
+      that: "output_desig.stdout == check_prio.stdout"
+      msg: "DUT is not elected as root bridge"
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Pause to elect DUT as designated root bridge(STP Convergence)
+    pause:
+     seconds: 60
+  - name: TC4 - Check the ports are in forwarding state
+    command: bash -c "brctl showstp br{{vlanid}} | awk '$1 ~ /port/ { print $5}'"
+    register: stp_state
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Verify the state is in forwarding
+    assert:
+      that: "'blocking' not in stp_state.stdout"
+      msg: STP state is in listening or learning state
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Configure static MAC {{staticMAC}} on {{bond_interface}} DUT
+    command: bash -c "cps_config_mac.py create mac {{staticMAC}} port {{bond_interface}} vlan {{vlanid}}"
+    register: configure_static_MAC_portchannel
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Verify the output of configuring static MAC using CPS is success
+    assert:
+      that: "'success' in configure_static_MAC_portchannel.stdout"
+      msg: "Configuring static MAC address on {{bond_interface}} failed"
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Issue the l2 show command to check whether the mac learnt on {{bond_interface}}
+    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{staticMAC}}"
+    register: output_l2_mac_show
+    when: inventory_hostname == "DUT"
+  - name: TC4 - STDOUT the show command {{switchShell}} l2 show
+    debug:
+      msg: "{{output_l2_mac_show.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Verify the MAC address is learnt on {{test_int2}}
+    assert:
+      that: "'mac={{staticMAC}}' in output_l2_mac_show.stdout"
+      msg: "Static MAC address is not programmed"
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Shutdown one of the members of the bond interface on DUT
+    command: bash -c "ip link set dev {{test_int1}} down"
+    register: member_down
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Clear the stats on all the ports on DUT
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{server_int}}"
+      - "{{test_int1}}"
+      - "{{test_int2}}"
+      - "{{test_int3}}"
+    register: clear_stats
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+         - "'Success' in clear_stats.results[1].stdout"
+         - "'Success' in clear_stats.results[2].stdout"
+         - "'Success' in clear_stats.results[3].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Generate known unicast stream from {{server_link}} with vlan id {{vlanid}} to DUT
+    script: files/l2mac_unknown_unicast.py --dMAC={{staticMAC}} --sMAC={{unknownMAC}} --vlanid={{vlanid}} --dstIP="192.160.1.1" --srcIP="192.168.1.1" --serverint="{{server_link}}.{{vlanid}}"
+    register: traffic_gen_known_unicast
+    when: inventory_hostname == "Server1"
+  - name: TC4 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_known_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC4 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_known_unicast.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC4 - Pause for 20 seconds for the data traffic to go through
+    pause:
+      seconds: 20
+  - name: TC4 - Verify Known unicast traffic sent on {{bond_interface}} and dropped on {{test_int3}}  on DUT
+    command: bash -c "{{statsCommand}} if_stat {{test_int2}} | grep ether-tx-no-errors | awk '{print $3}'; {{statsCommand}} if_stat {{test_int3}} | grep ether-tx-no-errors | awk '{print $3}'; ip link set dev {{test_int1}} up"
+    register: known_stat_output
+    when: inventory_hostname == "DUT"
+  - name: TC4 - STDOUT the statistics output
+    debug:
+      msg: "{{known_stat_output.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Verify the traffic is getting received on {{test_int2}} and dropped on {{test_int3}}
+    assert:
+      that:
+        - known_stat_output.stdout_lines[0] | int >= 100
+        - known_stat_output.stdout_lines[1] | int < 50
+      msg: "Traffic is not forwarded to the port"
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Verify Known unicast traffic received on {{server_int}} on TR
+    command: bash -c "{{statsCommand}} if_stat {{server_int}} | grep ether-tx-no-errors | awk '{print $3}'"
+    register: known_stat_output_TR
+    when: inventory_hostname == "TR"
+  - name: TC4 - STDOUT the statistics output
+    debug:
+      msg: "{{known_stat_output_TR.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC4 - Verify the traffic is getting received on {{sever_int}} on TR
+    assert:
+      that:
+        - known_stat_output_TR.stdout_lines[0] | int >= 100
+      msg: "Traffic is not forwarded to the port"
+    when: inventory_hostname == "TR"
+  - name: TC4 - Unconfigure static MAC on {{bond_interface}} on DUT
+    command: bash -c "cps_config_mac.py delete vlan {{vlanid}} port {{bond_interface}} mac {{staticMAC}} static"
+    register: delete_static_MAC
+    when: inventory_hostname == "DUT"
+  - name: TC4 - STDOUT the statistics output
+    debug:
+      msg: "{{delete_static_MAC.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Verify the traffic is getting flooded on all the ports
+    assert:
+      that: "'success' in delete_static_MAC.stdout"
+      msg: "Static MAC is not deleted"
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Generate unknown unicast stream from {{server_link}} with vlan id {{vlanid}} to DUT
+    script: files/l2mac_unknown_unicast.py --dMAC={{staticMAC}} --sMAC={{unknownMAC}} --vlanid={{vlanid}} --dstIP="192.160.1.1" --srcIP="192.168.1.1" --serverint="{{server_link}}.{{vlanid}}"
+    register: traffic_gen_unknown_unicast
+    when: inventory_hostname == "Server1"
+  - name: TC4 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_unknown_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC4 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_unknown_unicast.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC4 - Pause for 20 seconds for the data traffic to go through
+    pause:
+      seconds: 20
+  - name: TC4 - Verify Unknown unicast traffic received on {{test_int3}}  on DUT
+    command: bash -c "{{statsCommand}} if_stat {{test_int3}} | grep ether-tx-no-errors | awk '{print $3}'"
+    register: Unknown_stat_output
+    when: inventory_hostname == "DUT"
+  - name: TC4 - STDOUT the statistics output
+    debug:
+      msg: "{{Unknown_stat_output.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC4 - Verify the traffic is getting flooded on all the ports
+    assert:
+      that:
+        - Unknown_stat_output.stdout_lines[0] | int >= 100
+      msg: "Traffic is not forwarded to the port"
+    when: inventory_hostname == "DUT"
+  tags: Verify_Layer2_Forwarding_with_statically_configured_MAC_on_static_port_channel
+  rescue:
+  - name: TC4 - Debug Commands for TC4 for failure analysis
+    command: bash -c "lsmod | grep bonding; {{system_status}}; ifconfig -a; ip link show {{bond_interface}}; ip addr show; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
+    register: debug_TC4
+  - name: TC4 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC4_l2mac_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC4_l2mac_{{inventory_hostname}}
+      dest: /tmp/TC4_l2mac_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  always:
+  - name: TC4 - Clean up the configurations {{bond_interface}} and br{{vlanid}} on DUT and TR
+    command: bash -c "cps_config_vlan.py --del --name br{{vlanid}}; cps_config_lag.py --delete --lname {{bond_interface}}"
+    register: clean_up_bond_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - STDOUT the clean up configurations output
+    debug:
+      msg: "{{clean_up_bond_bridge.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Verify {{bond_interface}} and br{{vlanid}} gets deleted
+    assert:
+      that:
+        - "'Success' in clean_up_bond_bridge.stdout_lines[0]"
+        - "'Success' in clean_up_bond_bridge.stdout_lines[1]"
+      msg: "Failed to delete {{bond_interface}} and br{{vlanid}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+
+
+- block:
+  - name: TC5 - Verify aging time set and learnt MAC addresses gets aged out
+    shell: echo "*****Verify aging time set and learnt MAC addresses gets aged out*****"
+    register: TC5
+  - name: TC5- Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
+    import_tasks: setup.yml
+  - name: TC5 - Configure LACP PortChannel on DUT and TR
+    command: bash -c "ip link add {{bond_interface}} type bond mode 4 miimon 100; ip link set dev {{bond_interface}} up"
+    register: config_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - STDOUT the output of portchannel
+    command: bash -c "ip link show {{bond_interface}}"
+    register: show_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - STDOUT the statistics output
+    debug:
+      msg: "{{show_portchannel}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Verify {{bond_interface}} is created
+    assert:
+      that: "'{{bond_interface}}' in show_portchannel.stdout"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Add member ports {{test_int1}} and {{test_int2}} to the {{bond_interface}}
+    command: bash -c "ip link set dev {{test_int1}} down; ip link set dev {{test_int2}} down; ip link set {{test_int1}} master {{bond_interface}}; ip link set {{test_int2}} master {{bond_interface}}"
+    register: config_member_ports_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Bring up the member ports {{test_int1}},{{test_int2}} and {{bond_interface}}
+    command: bash -c "ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; ip link set dev {{bond_interface}} up"
+    register: bring_up_member_ports_portchannel
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - STDOUT the show commands to check the member ports {{test_int1}},{{test_int2}} are inside the {{bond_interface}}
+    command: bash -c "ip link show {{test_int1}}; ip link show {{test_int2}}"
+    register: show_member_ports
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - STDOUT the output
+    debug:
+      msg: "{{show_member_ports.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Verify the member ports {{test_int1}} and {{test_int2}} are in {{bond_interface}}
+    assert:
+      that:
+        - "'SLAVE' in show_member_ports.stdout_lines[0]"
+      msg: "Member Ports are not added to {{bond_interface}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Verify the member ports interfaces are UP
+    assert:
+      that:
+        - "'state UP' in show_member_ports.stdout_lines[0]"
+      msg: "Member ports are not up"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Configure Vlan {{vlanid}} on the server side and bring up the ports,bridge
+    command: bash -c "brctl addbr br{{vlanid}}; ip link add link {{server_link}} name {{server_link}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{server_link}}.{{vlanid}} up; brctl addif br{{vlanid}} {{server_link}}.{{vlanid}}; ip link set dev {{server_link}} up; ip link set dev br{{vlanid}} up"
+    register: configure_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC5 - Create vlan {{vlanid}} tagged on DUT and TR
+    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}} -t; brctl stp br{{vlanid}} on; ip link set dev br{{vlanid}} up"
+    register: config_vlan
+    changed_when: false
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Verify the CPS configuration of br{{vlanid}} is success
+    assert:
+      that: "'Success' in config_vlan.stdout_lines[0]"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Issue the show command to check br{{vlanid}} exists
+    command: bash -c "ip link show br{{vlanid}}"
+    register: show_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - STDOUT the output from the cps_config_vlan command
+    debug:
+      msg: "{{show_bridge.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Verify the resulted output is success or failure
+    assert:
+      that: "'br{{vlanid}}' in show_bridge.stdout"
+      msg: "Vlan configuration failed"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Add LACP port-channel {{bond_interface}} to br{{vlanid}}
+    command: bash -c "ip link add link {{bond_interface}} name {{bond_interface}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{bond_interface}}.{{vlanid}} up; brctl addif br{{vlanid}} {{bond_interface}}.{{vlanid}}"
+    register: add_portchannel_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Issue the show command for br{{vlanid}}
+    command: bash -c "brctl show br{{vlanid}}"
+    register: show_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - STDOUT the show command for br{{vlanid}}
+    debug:
+      msg: "{{show_bridge.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Verify {{bond_interface}} is added to the br{{vlanid}}
+    assert:
+      that: "'{{bond_interface}}.{{vlanid}}' in show_bridge.stdout"
+      msg: "{{bond_interface}} is not added to the br{{vlanid}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - STDOUT the ip link show command for br{{vlanid}} for server
+    command: bash -c "ip link show br{{vlanid}} | awk '{print $8,$9}'"
+    register: status_check_bridge_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC5 - Verify br{{vlanid}} is up
+    assert:
+      that: "'state UP' in status_check_bridge_server.stdout_lines[0]"
+      msg: "br{{vlanid}} is not up"
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC5 - Pause for 30 seconds for STP Convergence
+    pause:
+      seconds: 30
+  - name: TC5 - STDOUT the ip link show command for br{{vlanid}} for DUT and TR
+    command: bash -c "ip link show br{{vlanid}} | awk '{print $8,$9}'"
+    register: status_check_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - STDOUT the output
+    debug:
+      msg: "{{status_check_bridge.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Verify br{{vlanid}} is up
+    assert:
+      that: "'state UP' in status_check_bridge.stdout"
+      msg: "br{{vlanid}} is not up"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Change the priority on DUT to select as root bridge
+    command: bash -c "brctl setbridgeprio br{{vlanid}} 0"
+    register: change_root_prio
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Show command to check the priority
+    command: bash -c "brctl show br{{vlanid}} | awk 'FNR == 2 {print $2}'"
+    register: check_prio
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Verify the priority is 0 on DUT
+    assert:
+      that: "'0000' in check_prio.stdout"
+      msg: "Priority is not changed"
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Check DUT is elected as the designated root bridge
+    command: bash -c "brctl showstp br{{vlanid}} | grep designated | awk 'FNR == 2 {print $3}'"
+    register: output_desig
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Verify DUT is elected as root bridge
+    assert:
+      that: "output_desig.stdout == check_prio.stdout"
+      msg: "DUT is not elected as root bridge"
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Pause to elect DUT as designated root bridge(STP Convergence)
+    pause:
+     seconds: 60
+  - name: TC5 - Check the ports are in forwarding state
+    command: bash -c "brctl showstp br{{vlanid}} | awk '$1 ~ /port/ { print $5}'"
+    register: stp_state
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Verify the state is in forwarding
+    assert:
+      that: "'blocking' not in stp_state.stdout"
+      msg: STP state is in listening or learning state
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Clear the stats on all the ports on DUT
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{server_int}}"
+      - "{{test_int1}}"
+      - "{{test_int2}}"
+      - "{{test_int3}}"
+    register: clear_stats
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+         - "'Success' in clear_stats.results[1].stdout"
+         - "'Success' in clear_stats.results[2].stdout"
+         - "'Success' in clear_stats.results[3].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Generate unknown unicast stream from {{server_link}} with vlan id {{vlanid}} to DUT
+    script: files/l2mac_unknown_unicast.py --dMAC={{dMAC}} --sMAC={{unknownMAC}} --vlanid={{vlanid}} --dstIP="192.160.1.1" --srcIP="192.168.1.1" --serverint="{{server_link}}.{{vlanid}}"
+    register: traffic_gen_unknown_unicast
+    when: inventory_hostname == "Server1"
+  - name: TC5 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_unknown_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC5 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_unknown_unicast.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC5 - Pause for 20 seconds for the data traffic to go through
+    pause:
+      seconds: 20
+  - name: TC5 - Verify VLAN flooding happened on TR {{server_int}} port connected to server
+    command: bash -c "{{statsCommand}} if_stat {{server_int}} | grep ether-tx-no-errors | awk '{print $3}'"
+    register: stat_output_TR
+    when: inventory_hostname == "TR"
+  - name: TC5 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output_TR.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC5 - Verify the traffic is flooded on to port {{server_int}} on TR
+    assert:
+      that: stat_output_TR.stdout_lines[0] | int >= 100
+      msg: "Traffic is not flooded on TR"
+    when: inventory_hostname == "TR"
+  - name: TC5 - Issue the l2 show command to check whether the mac learnt on {{test_int2}} on DUT
+    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{unknownMAC}}"
+    register: output_l2_mac_show
+    when: inventory_hostname == "DUT"
+  - name: TC5 - STDOUT the show command {{switchShell}} l2 show
+    debug:
+      msg: "{{output_l2_mac_show.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Verify the MAC address is learnt on {{test_int2}}
+    assert:
+      that: "'mac={{unknownMAC}}' in output_l2_mac_show.stdout"
+      msg: "Unknown MAC address is not programmed"
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Set the MAC aging timer to 30 seconds on DUT
+    command: bash -c "{{configSystem}} set mac-age-timer=30 switch-id=0"
+    register: set_MAC_aging
+    when: inventory_hostname == "DUT"
+  - name: TC5 - STDOUT the output is success or not
+    debug:
+      msg: "{{set_MAC_aging.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Verify the MAC address aging is set
+    assert:
+      that: "'Success' in set_MAC_aging.stdout"
+      msg: "Failed to set the MAC aging time"
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Pause for 60 seconds for the MAC ADDRESS to AGE OUT
+    pause:
+      seconds: 60
+  - name: TC5 - Issue the l2 show command to check whether the mac gets aged out {{server_int}} on DUT
+    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}'"
+    register: output_l2_mac_show
+    when: inventory_hostname == "DUT"
+  - name: TC5 - STDOUT the show command {{switchShell}} l2 show
+    debug:
+      msg: "{{output_l2_mac_show.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Verify the MAC address is aged out on {{server_int}}
+    assert:
+      that: "'{{unknownMAC}}' not in output_l2_mac_show.stdout"
+      msg: "MAC address is not aged out"
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Remove {{bond_interface}} from br{{vlanid}} on DUT
+    command: bash -c "brctl delif br{{vlanid}} {{bond_interface}}.{{vlanid}}; ip link set dev {{bond_interface}}.{{vlanid}} down; ip link delete {{bond_interface}}.{{vlanid}} type vlan id {{vlanid}}"
+    register: remove_bond_bridge
+    when: inventory_hostname == "DUT"
+  - name: TC5 - STDOUT the output of brctl show br{{vlanid}}
+    command: bash -c "brctl show br{{vlanid}}"
+    register: show_bridge
+    when: inventory_hostname == "DUT"
+  - name: TC5 - STDOUT the output
+    debug:
+      msg: "{{show_bridge.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Verify {{bond_interface}} is added to the br{{vlanid}}
+    assert:
+      that: "'{{bond_interface}}.{{vlanid}}' not in show_bridge.stdout"
+      msg: "{{bond_interface}} is not added to the br{{vlanid}}"
+    when: inventory_hostname == "DUT"
+  - name: TC5 - Clear the stats on all the ports on DUT and TR
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{server_int}}"
+      - "{{test_int1}}"
+      - "{{test_int2}}"
+      - "{{test_int3}}"
+    register: clear_stats
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+         - "'Success' in clear_stats.results[1].stdout"
+         - "'Success' in clear_stats.results[2].stdout"
+         - "'Success' in clear_stats.results[3].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Generate unknown unicast stream from {{server_link}} with vlan id {{vlanid}} to DUT
+    script: files/l2mac_unknown_unicast.py --dMAC={{dMAC}} --sMAC={{unknownMAC}} --vlanid={{vlanid}} --dstIP="192.160.1.1" --srcIP="192.168.1.1" --serverint="{{server_link}}.{{vlanid}}"
+    register: traffic_gen_unknown_unicast
+    when: inventory_hostname == "Server1"
+  - name: TC5 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_unknown_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC5 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_unknown_unicast.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC5 - Pause for 20 seconds for the traffic to go through
+    pause:
+      seconds: 20
+  - name: TC5 - Verify VLAN flooding not happened on TR {{server_int}} port connected to server
+    command: bash -c "{{statsCommand}} if_stat {{server_int}} | grep ether-tx-no-errors | awk '{print $3}'"
+    register: stat_output_TR
+    when: inventory_hostname == "TR"
+  - name: TC5 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output_TR.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC5 - Verify the traffic is flooded on to port {{server_int}} on TR
+    assert:
+      that: stat_output_TR.stdout_lines[0] | int < 50
+      msg: "Traffic is flooded on TR"
+    when: inventory_hostname == "TR"
+  tags: ['Verify_aging_time_set_and_learnt_MAC_addresses_aged_out','sanity']
+  rescue:
+  - name: TC5 - Debug Commands for TC5 for failure analysis
+    command: bash -c "lsmod | grep bonding; {{system_status}}; ifconfig -a; ip link show {{bond_interface}}; ip addr show; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
+    register: debug_TC5
+  - name: TC4 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC5_l2mac_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC5_l2mac_{{inventory_hostname}}
+      dest: /tmp/TC5_l2mac_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  always:
+  - name: TC5 - Clean up the bridge configurations on DUT and TR
+    command: bash -c "cps_config_vlan.py --del --name br100"
+    register: clean_up_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Check br{{vlanid}} exists on DUT and TR
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Clean up the bridge configurations on server
+    command: bash -c "ifconfig br{{vlanid}} down; brctl delbr br{{vlanid}}"
+    register: clean_up_bridge_server
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC5 - STDOUT the ifconfig command to check br{{vlanid}} exists
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config_server
+    ignore_errors: yes
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC5 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config_server.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - name: TC5 - Clean up the portchannel configurations
+    command: bash -c "ip link show {{bond_interface}}"
+    register: show_portchannel
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Delete the {{bond_interface}}
+    command: bash -c "cps_config_lag.py --delete --lname {{bond_interface}}"
+    register: delete_lag
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Verify the lag gets deleted
+    assert:
+      that: "'Success' in delete_lag.stdout"
+      msg: "Failed to delete LAG"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")

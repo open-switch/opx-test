@@ -1,0 +1,42 @@
+---
+log_cmd:        opx_logging_cli
+path:           /usr/bin
+service_cps:    opx-cps
+service_pas:    opx-pas
+service_nas:    opx-nas
+service_acl:    opx-acl-init
+service_qos:    opx-qos-init
+system_status:  opx-show-system-status
+show_env:       opx-show-env
+show_media:     opx-show-transceivers
+fanoutcmd:   "opx-config-fanout"
+statsCommand:     "opx-show-stats"
+switchShell:    "opx-switch-shell"
+configSystem:    "opx-config-switch"
+versionCommand:  "opx-show-version"
+nameserver: "8.8.8.8"
+
+#### OPX Image Installation Variables
+
+telnet_esc: "^G"
+telnet_close: "\x07c\n"
+cmd: "pwd"
+default_exp:
+  '\[Enter .* to cli \]': "\n"
+  BIOS initializations...: "{{ telnet_close }}"
+cmds: "{{ cmd.splitlines() + [ telnet_close ] }}"
+exp:
+  'login: $': "{{ ansible_ssh_user }}"
+  'assword.*: $': "{{ ansible_ssh_pass }}"
+  '.*\$ $': "sudo -i"
+  '.*\# $': "{{ cmds }}"
+extra_exp: {}
+nos_install_exp:
+  Initializing installer: ""
+  Installing OPX on primary partition: ""
+  Updating database of manual pages: ""
+  apt-get update: ""
+  apt-get install: ""
+  Synchronizing standby partition: ""
+  Installation finished.: ""
+  machine restart: ""

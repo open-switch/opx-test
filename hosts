@@ -1,0 +1,10 @@
+[1host]
+
+DUT ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>'
+
+[2host]
+
+DUT ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>'
+TR ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>'
+Server1 ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>'
+Server2 ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>'

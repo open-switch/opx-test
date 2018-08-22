@@ -1,0 +1,4 @@
+---
+# tasks file for img_install
+
+- include: img_install.yml
