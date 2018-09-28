@@ -1,0 +1,518 @@
+---
+
+- block:
+  - name: TC1 - Inter VLAN Routing with Tagged Access Ports
+    shell: echo "*****TC1 Verify Intra VLAN Routing with Tagged Access Ports*****"
+    register: TC1
+  - name: TC1- Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
+    import_tasks: setup.yml
+  - name: TC1 - Configure Vlan {{vlanid}} on the server side and bring up the ports,bridge
+    command: bash -c "brctl addbr br{{vlanid}}; ip link add link {{server_link}} name {{server_link}}.{{vlanid}} type vlan id {{vlanid}}; brctl addif br{{vlanid}} {{server_link}}.{{vlanid}}; ip link set dev {{server_link}}.{{vlanid}} up; ip link set dev br{{vlanid}} up"
+    register: configure_server
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Configure IP address on the server
+    command: bash -c "ip addr add {{IPAddr3}}/{{prefixlen}} dev br{{vlanid}}"
+    register: configure_ip_address_server
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Verify whether the IP address configured on the interface
+    command: bash -c "ip addr show br{{vlanid}} | grep inet"
+    register: verify_ip_address_server
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Verify the ip address configured on server
+    assert:
+      that: "'{{IPAddr3}}/{{prefixlen}}' in verify_ip_address_server.stdout"
+      msg: "IP Address is not programmed"
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Create vlan {{vlanid}} with tagged port {{server_int}} ,{{test_int1}} on DUT 
+    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}},{{test_int1}} -t; ip link set dev br{{vlanid}} up"
+    register: config_vlan_tagged
+    changed_when: false
+    ignore_errors: yes
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the output from the cps_config_vlan command
+    debug:
+      msg: "{{config_vlan_tagged.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify the resulted output is success or failure
+    assert:
+      that: "'Success' in config_vlan_tagged.stdout"
+      msg: "Vlan configuration through CPS failed"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Create vlan {{vlanid}} with tagged port {{test_int1}} on TR
+    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{test_int1}} -t ; ip link set dev br{{vlanid}} up"
+    register: config_vlan_tagged
+    changed_when: false
+    ignore_errors: yes
+    when: inventory_hostname == "TR"
+  - name: TC1 - STDOUT the output from the cps_config_vlan command
+    debug:
+      msg: "{{config_vlan_tagged.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Verify the resulted output is success or failure
+    assert:
+      that: "'Success' in config_vlan_tagged.stdout"
+      msg: "Vlan configuration through CPS failed"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Create vlan {{vlanid}} with untagged port {{test_int2}} on DUT 
+    command: bash -c "cps_config_vlan.py  --addport --name  br{{vlanid}} --port {{test_int2}}; ip link set dev br{{vlanid}} up"
+    register: config_vlan_untagged
+    changed_when: false
+    ignore_errors: yes
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the output from the cps_config_vlan command
+    debug:
+      msg: "{{config_vlan_untagged.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify the resulted output is success or failure
+    assert:
+      that: "'Success' in config_vlan_untagged.stdout"
+      msg: "Vlan configuration through CPS failed"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the ip link show command for br{{vlanid}} for DUT,TR and Server
+    command: bash -c "ip link show br{{vlanid}} | awk '{print $8,$9}'"
+    register: status_check_bridge
+    when: inventory_hostname != "Server2"
+  - name: TC1 - STDOUT the output
+    debug:
+      msg: "{{status_check_bridge.stdout_lines}}"
+    when:  inventory_hostname != "Server2"
+  - name: TC1 - Verify br{{vlanid}} is up
+    assert:
+      that: "'state UP' in status_check_bridge.stdout"
+      msg: "br{{vlanid}} is not up"
+    when: inventory_hostname != "Server2"
+  - name: TC1 - Convert IP address {{IPAddr1}} to hexadecimal to configure on br{{vlanid}} on DUT using CPS
+    command: bash -c "export IPAddress='{{IPAddr1}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
+    register: convert_ip_address_hex
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the hexadecimal value of IP Address
+    debug:
+      msg: "{{convert_ip_address_hex.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Configure IP address on br{{vlanid}} on DUT using CPS
+    command: bash -c "cps_set_oid.py -qua target -oper create base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name=br{{vlanid}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    register: configure_ip_address
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the output of CPS set command to configure IP address
+    debug:
+      msg: "{{configure_ip_address.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify whether the CPS set of configuring IP address is success
+    assert:
+      that: "'Success' in configure_ip_address.stdout"
+      msg: "CPS set configuration of IP address failed"
+    when: inventory_hostname == "DUT" 
+  - name: TC1 - Convert IP address {{IPAddr2}} to hexadecimal to configure on br{{vlanid}} on TR using CPS
+    command: bash -c "export IPAddress='{{IPAddr2}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
+    register: convert_ip_address_hex
+    when: inventory_hostname == "TR"
+  - name: TC1 - STDOUT the hexadecimal value of IP Address
+    debug:
+      msg: "{{convert_ip_address_hex.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Configure IP address on br{{vlanid}} on TR using CPS
+    command: bash -c "cps_set_oid.py -qua target -oper create base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name=br{{vlanid}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    register: configure_ip_address
+    when: inventory_hostname == "TR"
+  - name: TC1 - STDOUT the output of CPS set command to configure IP address
+    debug:
+      msg: "{{configure_ip_address.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Verify whether the CPS set of configuring IP address is success
+    assert:
+      that: "'Success' in configure_ip_address.stdout"
+      msg: "CPS set configuration of IP address failed"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Clear the stats on all the ports on TR to start/verify Data Traffic
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{server_int}}"
+      - "{{test_int1}}"
+      - "{{test_int2}}"
+      - "{{test_int3}}"
+    register: clear_stats
+    when: inventory_hostname == "TR"
+  - name: TC1 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+         - "'Success' in clear_stats.results[1].stdout"
+         - "'Success' in clear_stats.results[2].stdout"
+         - "'Success' in clear_stats.results[3].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Generate unicast traffic stream from Server(Server------>DUT----->TR)
+    script: files/l3_unicast.py --dstIP={{IPAddr2}} --srcIP={{IPAddr3}}
+    register: traffic_gen_known_unicast
+    when: inventory_hostname == "Server1"
+  - name: TC1 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_known_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_known_unicast.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Pause for 20 seconds for the traffic to go through
+    pause:
+      seconds: 20
+  - name: TC1 - Verify unicast traffic receives on {{test_int1}} and not on {{test_int2}} on TR
+    command: bash -c "{{statsCommand}} if_stat {{test_int1}} | grep ether-tx-no-errors | awk '{print $3}'; {{statsCommand}} if_stat {{test_int2}} | grep ether-tx-no-errors | awk '{print $3}'"
+    register: stat_output
+    when: inventory_hostname == "TR"
+  - name: TC1 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines | int}}"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Verify the traffic is unicast to {{test_int1}} and not on {{test_int2}}
+    assert:
+      that:
+        - stat_output.stdout_lines[0] | int >= 100
+        - stat_output.stdout_lines[1] | int <= 100
+      msg: "Traffic is not flooded to the ports"
+    when: inventory_hostname == "TR"
+  tags: ['Verify_Intra_VLAN_Routing_With_Tagged_Access_Ports','full','sanity']
+  rescue:
+  - name: TC1 - Debug commands for the failed test case 
+    command: bash -c "ifconfig -a; ip addr show; brctl show br{{vlanid}}; ip route show; {{switchShell}} 'l3 defip show'; {{switchShell}} 'l3 egress show'; {{switchShell}} 'l3 l3table show'; {{switchShell}} 'd my_station_tcam'; journalctl -b"
+    register: debug_TC1
+  - name: TC1 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC1_l3_intra_inter_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC1_l3_intra_inter_{{inventory_hostname}}
+      dest: /tmp/TC1_l3_intra_inter_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  always:
+  - name: TC1 - Clean up the bridge configurations on DUT and TR
+    command: bash -c "cps_config_vlan.py --del --name br{{vlanid}}"
+    register: clean_up_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Check br{{vlanid}} exists on DUT and TR
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Clean up the bridge configurations on server
+    command: bash -c "ifconfig br{{vlanid}} down; brctl delbr br{{vlanid}}; ip link del {{server_link}}.{{vlanid}}"
+    register: clean_up_bridge_server
+    when: inventory_hostname == "Server1"
+  - name: TC1 - STDOUT the ifconfig command to check br{{vlanid}} exists
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config_server
+    ignore_errors: yes
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config_server.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: inventory_hostname == "Server1"
+
+
+- block:
+  - name: TC2 - Inter VLAN Routing with Tagged Access Ports
+    shell: echo "*****TC1 Verify Inter VLAN Routing with Tagged Access Ports*****"
+    register: TC2
+  - name: TC2- Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
+    import_tasks: setup.yml
+  - name: TC2 - Configure Vlan {{vlanid}} on the server side and bring up the ports,bridge
+    command: bash -c "brctl addbr br{{vlanid}}; ip link add link {{server_link}} name {{server_link}}.{{vlanid}} type vlan id {{vlanid}}; brctl addif br{{vlanid}} {{server_link}}.{{vlanid}}; ip link set dev {{server_link}}.{{vlanid}} up; ip link set dev br{{vlanid}} up"
+    register: configure_server
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Configure IP address on the server
+    command: bash -c "ip addr add {{IPAddr3}}/{{prefixlen}} dev br{{vlanid}}"
+    register: configure_ip_address_server
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Verify whether the IP address configured on the interface
+    command: bash -c "ip addr show br{{vlanid}} | grep inet"
+    register: verify_ip_address_server
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Verify the ip address configured on server
+    assert:
+      that: "'{{IPAddr3}}/{{prefixlen}}' in verify_ip_address_server.stdout"
+      msg: "IP Address is not programmed"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Create vlan {{vlanid}} with tagged port {{server_int}} on DUT
+    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}} -t; ip link set dev br{{vlanid}} up"
+    register: config_vlan_tagged
+    changed_when: false
+    ignore_errors: yes
+    when: inventory_hostname == "DUT"
+  - name: TC2 - STDOUT the output from the cps_config_vlan command
+    debug:
+      msg: "{{config_vlan_tagged.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify the resulted output is success or failure
+    assert:
+      that: "'Success' in config_vlan_tagged.stdout"
+      msg: "Vlan configuration through CPS failed"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Create vlan {{interVLAN}} routing with tagged port {{test_int1}} on DUT and TR
+    command: bash -c "cps_config_vlan.py  --add --id {{interVLAN}} --vlantype 1 --port {{test_int1}} -t; ip link set dev br{{interVLAN}} up"
+    register: config_vlan_tagged
+    changed_when: false
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - STDOUT the output from the cps_config_vlan command
+    debug:
+      msg: "{{config_vlan_tagged.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Verify the resulted output is success or failure
+    assert:
+      that: "'Success' in config_vlan_tagged.stdout"
+      msg: "Vlan configuration through CPS failed"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - STDOUT the ip link show command for br{{vlanid}} for DUT,TR and Server
+    command: bash -c "ip link show br{{vlanid}} | awk '{print $8,$9}'"
+    register: status_check_bridge
+    when:
+      - inventory_hostname != "Server2"
+      - inventory_hostname != "TR"
+  - name: TC2 - STDOUT the output
+    debug:
+      msg: "{{status_check_bridge.stdout_lines}}"
+    when:
+      - inventory_hostname != "Server2"
+      - inventory_hostname != "TR"
+  - name: TC2 - Verify br{{vlanid}} is up
+    assert:
+      that: "'state UP' in status_check_bridge.stdout"
+      msg: "br{{vlanid}} is not up"
+    when: 
+      - inventory_hostname != "Server2"
+      - inventory_hostname != "TR"
+  - name: TC2 - Convert IP address {{IPAddr1}} to hexadecimal to configure on br{{vlanid}} on DUT using CPS
+    command: bash -c "export IPAddress='{{IPAddr1}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
+    register: convert_ip_address_hex
+    when: inventory_hostname == "DUT"
+  - name: TC2 - STDOUT the hexadecimal value of IP Address
+    debug:
+      msg: "{{convert_ip_address_hex.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Configure IP address on br{{vlanid}} on DUT using CPS
+    command: bash -c "cps_set_oid.py -qua target -oper create base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name=br{{vlanid}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    register: configure_ip_address
+    when: inventory_hostname == "DUT"
+  - name: TC2 - STDOUT the output of CPS set command to configure IP address
+    debug:
+      msg: "{{configure_ip_address.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify whether the CPS set of configuring IP address is success
+    assert:
+      that: "'Success' in configure_ip_address.stdout"
+      msg: "CPS set configuration of IP address failed"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Convert IP address {{interVLANIP1}} to hexadecimal to configure on br{{interVLAN}} on DUT using CPS
+    command: bash -c "export IPAddress='{{interVLANIP1}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
+    register: convert_ip_address_hex
+    when: inventory_hostname == "DUT"
+  - name: TC2 - STDOUT the hexadecimal value of IP Address
+    debug:
+      msg: "{{convert_ip_address_hex.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Configure IP address on br{{interVLAN}} on DUT using CPS
+    command: bash -c "cps_set_oid.py -qua target -oper create base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name=br{{interVLAN}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    register: configure_ip_address
+    when: inventory_hostname == "DUT"
+  - name: TC2 - STDOUT the output of CPS set command to configure IP address
+    debug:
+      msg: "{{configure_ip_address.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify whether the CPS set of configuring IP address is success
+    assert:
+      that: "'Success' in configure_ip_address.stdout"
+      msg: "CPS set configuration of IP address failed"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Convert IP address {{interVLANIP2}} to hexadecimal to configure on br{{interVLAN}} on DUT using CPS
+    command: bash -c "export IPAddress='{{interVLANIP2}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
+    register: convert_ip_address_hex
+    when: inventory_hostname == "TR"
+  - name: TC2 - STDOUT the hexadecimal value of IP Address
+    debug:
+      msg: "{{convert_ip_address_hex.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC2 - Configure IP address on br{{interVLAN}} on DUT using CPS
+    command: bash -c "cps_set_oid.py -qua target -oper create base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name=br{{interVLAN}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    register: configure_ip_address
+    when: inventory_hostname == "TR"
+  - name: TC2 - STDOUT the output of CPS set command to configure IP address
+    debug:
+      msg: "{{configure_ip_address.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC2 - Verify whether the CPS set of configuring IP address is success
+    assert:
+      that: "'Success' in configure_ip_address.stdout"
+      msg: "CPS set configuration of IP address failed"
+    when: inventory_hostname == "TR" 
+  - name: TC2 - Configure Static Route from Server1 to TR for interVLAN Routing
+    command: bash -c "ip route add {{interVLANIP2}}/{{hostprefix}} via {{IPAddr1}}"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Issue the show command for the route {{interVLANIP2}} on Server1
+    command: bash -c "ip route show {{interVLANIP2}}"
+    register: route_show
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Verify the static route for {{interVLANIP2}} is present on Server1
+    assert:
+      that: "'{{interVLANIP2}} via {{IPAddr1}} dev br{{vlanid}}' in route_show.stdout"
+      msg: "Static Route is not programmed on Server1"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Configure Static Route from TR to Server1 for interVLAN Routing
+    command: bash -c "ip route add {{IPAddr3}}/{{hostprefix}} via {{interVLANIP1}}"
+    when: inventory_hostname == "TR"
+  - name: TC2 - Issue the show command for the route {{IPAddr3}} on TR
+    command: bash -c "ip route show {{IPAddr3}}"
+    register: route_show
+    when: inventory_hostname == "TR"
+  - name: TC2 - Verify the static route for {{IPAddr3}} is present on TR
+    assert:
+      that: "'{{IPAddr3}} via {{interVLANIP1}} dev br{{interVLAN}}' in route_show.stdout"
+      msg: "Static Route is not programmed on TR"
+    when: inventory_hostname == "TR"
+  - name: TC2 - Ping to {{interVLANIP2}} on TR from Server1
+    command: bash -c "ping -c 5 101.1.1.2 | grep packet | awk '{print $6,$7,$8}'"
+    register: ping_output
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Verify the ping is 100% went through
+    assert:
+      that: "'0% packet loss,' in ping_output.stdout"
+      msg: "Ping failed. Please check the debug commands in rescue section"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Clear the stats on all the ports on TR to start/verify Data Traffic
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{server_int}}"
+      - "{{test_int1}}"
+      - "{{test_int2}}"
+      - "{{test_int3}}"
+    register: clear_stats
+    when: inventory_hostname == "TR"
+  - name: TC2 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: inventory_hostname == "TR"
+  - name: TC2 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+         - "'Success' in clear_stats.results[1].stdout"
+         - "'Success' in clear_stats.results[2].stdout"
+         - "'Success' in clear_stats.results[3].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: inventory_hostname == "TR"
+  - name: TC2 - Generate unicast traffic stream from Server1(Server1---br{{vlanid}}--->DUT--br{{interVLAN}}--->TR)
+    script: files/l3_unicast.py --dstIP={{interVLANIP2}} --srcIP={{IPAddr3}}
+    register: traffic_gen_known_unicast
+    when: inventory_hostname == "Server1"
+  - name: TC2 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_known_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_known_unicast.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Pause for 20 seconds for the traffic to go through
+    pause:
+      seconds: 20
+  - name: TC2 - Verify unicast traffic receives on {{test_int1}} on TR
+    command: bash -c "{{statsCommand}} if_stat {{test_int1}} | grep ether-rx-no-errors | awk '{print $3}'"
+    register: stat_output
+    when: inventory_hostname == "TR"
+  - name: TC2 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines | int}}"
+    when: inventory_hostname == "TR"
+  - name: TC2 - Verify the traffic is unicast to {{test_int1}} on TR
+    assert:
+      that:
+        - stat_output.stdout_lines[0] | int >= 100
+      msg: "Traffic is not received on {{test_int1}}"
+    when: inventory_hostname == "TR"
+  tags: ['Verify_Inter_VLAN_Routing_With_Tagged_Access_Ports','full','sanity']
+  rescue:
+  - name: TC2 - Debug commands for the failed test case
+    command: bash -c "ifconfig -a; ip addr show; brctl show; ip route show; {{switchShell}} 'l3 defip show'; {{switchShell}} 'l3 egress show'; {{switchShell}} 'l3 l3table show'; {{switchShell}} 'd my_station_tcam'; journalctl -b"
+    register: debug_TC1
+  - name: TC2 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC2_l3_intra_inter_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC2_l3_intra_inter_{{inventory_hostname}}
+      dest: /tmp/TC2_l3_intra_inter_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  always:
+  - name: TC2 - Clean up the bridge br{{vlanid}} configurations on DUT
+    command: bash -c "cps_config_vlan.py --del --name br{{vlanid}}"
+    register: clean_up_bridge
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Check br{{vlanid}} exists on DUT
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config
+    ignore_errors: yes
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Clean up the br{{interVLAN}} configurations on DUT and TR
+    command: bash -c "cps_config_vlan.py --del --name br{{interVLAN}}"
+    register: clean_up_bridge
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Check br{{interVLAN}} exists on DUT and TR
+    command: bash -c "ifconfig br{{interVLAN}}"
+    register: check_bridge_config
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config.stderr"
+      msg: "br{{interVLAN}} still present in the output"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Clean up the bridge configurations br{{vlanid}} on server
+    command: bash -c "ifconfig br{{vlanid}} down; brctl delbr br{{vlanid}}; ip link del {{server_link}}.{{vlanid}}"
+    register: clean_up_bridge_server
+    when: inventory_hostname == "Server1"
+  - name: TC1 - STDOUT the ifconfig command to check br{{vlanid}} exists
+    command: bash -c "ifconfig br{{vlanid}}"
+    register: check_bridge_config_server
+    ignore_errors: yes
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Verify the output of the command whether br{{vlanid}} exists
+    assert:
+      that: "'Device not found' in check_bridge_config_server.stderr"
+      msg: "br{{vlanid}} still present in the output"
+    when: inventory_hostname == "Server1"

@@ -1,0 +1,30 @@
+---
+
+
+
+#fanoutport:  "e101-027-0"
+
+#splitport:   "4x1"
+
+#speed:    "10g"
+
+#server_int:   "e101-027-1"
+
+#test_int1:   "e101-001-0"
+
+#test_int2:   "e101-002-0"
+
+#test_int3:   "e101-003-0"
+
+vlanid:   100
+
+unknownMAC:  "00:00:00:11:11:11"
+
+dMAC:    "00:00:00:33:33:33"
+
+staticMAC:    "00:00:00:22:22:22"
+
+#server_link:    "ens192"
+
+bond_interface:    "bond1"
+

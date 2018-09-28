@@ -1,0 +1,15 @@
+---
+# vars file for span_mirroring
+
+
+IPAddr1: "11.11.11.1"
+IPAddr2: "11.11.11.2"
+IPAddr3: "12.12.12.1"
+IPAddr4: "12.12.12.2"
+prefixlen:  "24"
+lacpdMAC:  "01:80:C2:00:00:02"
+lacpsMAC:  "00:44:00:00:00:00"
+lacp_ethertype:   0x8809
+dot1xdMAC:  "01:80:C2:00:00:03"
+dot1xsMAC:  "00:44:00:22:33:44"
+dot1x_ethertype:  0x888E

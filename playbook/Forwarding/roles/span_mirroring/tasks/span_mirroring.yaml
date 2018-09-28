@@ -1,0 +1,309 @@
+---
+
+- block:
+  - name: TC1 - Verify the span mirroring functionality
+    shell: echo "*****TC1 Verify the SPAN Mirroring functionality*****"
+    register: TC1
+  - name: TC1 - Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
+    import_tasks: setup.yml
+  - name: TC1 - Convert IP address {{IPAddr1}} to hexadecimal to configure on {{server_int}} on DUT using CPS
+    command: bash -c "export IPAddress='{{IPAddr1}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
+    register: convert_ip_address_hex
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the hexadecimal value of IP Address
+    debug:
+      msg: "{{convert_ip_address_hex.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Set the interface IP address on {{server_int}} link on DUT
+    command: bash -c "cps_set_oid.py -qua target -oper create base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name={{server_int}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    register: configure_ip_address
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the output of CPS set command to configure IP address
+    debug:
+      msg: "{{configure_ip_address.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify whether the CPS set of configuring IP address is success
+    assert:
+      that: "'Success' in configure_ip_address.stdout"
+      msg: "CPS set configuration of IP address failed"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Configure IP address on the server1 connected to DUT
+    command: bash -c "ip addr add {{IPAddr2}}/{{prefixlen}} dev {{server_link}}"
+    register: configure_ip_address_server
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Verify whether the IP address configured on the interface
+    command: bash -c "ip addr show {{server_link}} | grep inet"
+    register: verify_ip_address_server
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Verify the ip address configured on server
+    assert:
+      that: "'{{IPAddr2}}/{{prefixlen}}' in verify_ip_address_server.stdout"
+      msg: "IP Address is not programmed"
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Convert IP address {{IPAddr3}} to hexadecimal to configure on {{test_int1}} on DUT using CPS
+    command: bash -c "export IPAddress='{{IPAddr3}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
+    register: convert_ip_address_hex
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the hexadecimal value of IP Address
+    debug:
+      msg: "{{convert_ip_address_hex.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Set the interface IP address on {{test_int1}} link on DUT
+    command: bash -c "cps_set_oid.py -qua target -oper create base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name={{test_int1}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    register: configure_ip_address
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the output of CPS set command to configure IP address
+    debug:
+      msg: "{{configure_ip_address.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify whether the CPS set of configuring IP address is success
+    assert:
+      that: "'Success' in configure_ip_address.stdout"
+      msg: "CPS set configuration of IP address failed"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Convert IP address {{IPAddr4}} to hexadecimal to configure on {{test_int1}} on TR using CPS
+    command: bash -c "export IPAddress='{{IPAddr4}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
+    register: convert_ip_address_hex
+    when: inventory_hostname == "TR"
+  - name: TC1 - STDOUT the hexadecimal value of IP Address
+    debug:
+      msg: "{{convert_ip_address_hex.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Set the interface IP address on {{test_int1}} link on TR
+    command: bash -c "cps_set_oid.py -qua target -oper create base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name={{test_int1}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    register: configure_ip_address
+    when: inventory_hostname == "TR"
+  - name: TC1 - STDOUT the output of CPS set command to configure IP address
+    debug:
+      msg: "{{configure_ip_address.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Verify whether the CPS set of configuring IP address is success
+    assert:
+      that: "'Success' in configure_ip_address.stdout"
+      msg: "CPS set configuration of IP address failed"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Clear the stats on all the ports on DUT to start/verify Data Traffic
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{server_int}}"
+      - "{{test_int1}}"
+    register: clear_stats
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+         - "'Success' in clear_stats.results[1].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Configure SPAN Monitor session with {{server_int}} as source interface and {{test_int1}} as destination interface on DUT
+    command: bash -c "{{path}}/cps_config_mirror.py create span {{test_int1}} {{server_int}} rx"
+    register: config_mirror
+    changed_when: false
+    ignore_errors: yes
+    when: inventory_hostname == "DUT"
+  - name: STDOUT the CPS output from cps_config_mirror script
+    debug:
+      msg: "{{config_mirror.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: Verify the resulted CPS output is success
+    assert:
+      that: "'Success' in config_mirror.stdout"
+      msg: "CPS configuration failed to configure mirroring"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Generate LACP Traffic stream from port1 of server1
+    script: files/span_mirroring.py --dMAC={{lacpdMAC}} --sMAC={{lacpsMAC}} --ethertype={{lacp_ethertype}} --serverint="{{server_link}}"
+    register: traffic_gen_lacp
+    when: inventory_hostname == "Server1"
+  - name: TC1 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_lacp.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_lacp.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Pause for 20 seconds for the traffic to go through
+    pause:
+      seconds: 20
+  - name: TC1 - Verify traffic mirroring happens on {{test_int1}} on DUT
+    command: bash -c "{{statsCommand}} if_stat {{test_int1}} | grep ether-tx-no-errors | awk '{print $3}'"
+    register: stat_output
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines[0] | int}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify the traffic is getting flooded on all the ports
+    assert:
+      that:
+        - stat_output.stdout_lines[0] | int >= 100
+      msg: "Traffic is not mirrored to {{test_int1}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Clear the stats on all the ports on DUT to start/verify Data Traffic
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{server_int}}"
+      - "{{test_int1}}"
+    register: clear_stats
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+         - "'Success' in clear_stats.results[1].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Generate dot1x Traffic stream from port1 of server1
+    script: files/span_mirroring.py --dMAC={{dot1xdMAC}} --sMAC={{dot1xsMAC}} --ethertype={{dot1x_ethertype}} --serverint="{{server_link}}"
+    register: traffic_gen_dot1x
+    when: inventory_hostname == "Server1"
+  - name: TC1 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_dot1x.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_dot1x.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Pause for 20 seconds for the traffic to go through
+    pause:
+      seconds: 20
+  - name: TC1 - Verify traffic mirroring happens on {{test_int1}} on DUT
+    command: bash -c "{{statsCommand}} if_stat {{test_int1}} | grep ether-tx-no-errors | awk '{print $3}'"
+    register: stat_output
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines[0] | int}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify the traffic is getting flooded on all the ports
+    assert:
+      that:
+        - stat_output.stdout_lines[0] | int >= 100
+      msg: "Traffic is not mirrored to {{test_int1}}"
+    when: inventory_hostname == "DUT"
+  tags: ['Verify_Span_Mirroring_Functionality','sanity']
+  rescue:
+  - name: TC1-Debug Commands on one of the task in the block failed
+    command: bash -c "cps_get_oid.py base-mirror/entry; ip addr show; ip route show"
+    register: debug_commands
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC1_span_mirroring_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC1_span_mirroring_{{inventory_hostname}}
+      dest: /tmp/TC1_span_mirroring_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  always:
+  - name: Get the mirror id info and delete it
+    command: bash -c "cps_get_oid.py base-mirror/entry | grep base-mirror/entry/id | awk '{print $3}' | sort -u"
+    register: mirror_id
+    when: inventory_hostname == "DUT"
+  - name: Delete the mirror id
+    command: bash -c "cps_config_mirror.py delete {{mirror_id.stdout_lines[0]}}"
+    register: delete_mirror
+    when: inventory_hostname == "DUT"
+  - name: verify deleting the mirror id is success
+    assert:
+      that: "'Success' in delete_mirror.stdout"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Convert IP address {{IPAddr1}} to hexadecimal to delete on {{server_int}} on DUT using CPS
+    command: bash -c "export IPAddress='{{IPAddr1}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
+    register: convert_ip_address_hex
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the hexadecimal value of IP Address
+    debug:
+      msg: "{{convert_ip_address_hex.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Delete the interface IP address on {{server_int}} link on DUT
+    command: bash -c "cps_set_oid.py -qua target -oper delete base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name={{server_int}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    register: delete_ip_address
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the output of CPS set command to delete IP address
+    debug:
+      msg: "{{delete_ip_address.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify whether the CPS set of deleting IP address is success
+    assert:
+      that: "'Success' in delete_ip_address.stdout"
+      msg: "CPS delete configuration of IP address failed"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Delete IP address on the server1 connected to DUT
+    command: bash -c "ip addr flush dev {{server_link}}"
+    register: delete_ip_address_server
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Verify whether the IP address gets flushed on the interface
+    command: bash -c "ip addr show {{server_link}} | grep inet"
+    register: verify_ip_address_server
+    when: inventory_hostname == "Server1"
+    ignore_errors: yes
+  - name: TC1 - Verify the ip address deleted on server
+    assert:
+      that: "'{{IPAddr2}}/{{prefixlen}}' not in verify_ip_address_server.stdout"
+      msg: "IP Address is not programmed"
+    when: inventory_hostname == "Server1"
+  - name: TC1 - Convert IP address {{IPAddr3}} to hexadecimal to delete the IP on {{test_int1}} on DUT using CPS
+    command: bash -c "export IPAddress='{{IPAddr3}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
+    register: convert_ip_address_hex
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the hexadecimal value of IP Address
+    debug:
+      msg: "{{convert_ip_address_hex.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Delete the interface IP address on {{test_int1}} link on DUT
+    command: bash -c "cps_set_oid.py -qua target -oper delete base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name={{test_int1}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    register: delete_ip_address
+    when: inventory_hostname == "DUT"
+  - name: TC1 - STDOUT the output of CPS set command to delete IP address
+    debug:
+      msg: "{{delete_ip_address.stdout_lines}}"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify whether the CPS set of deleting IP address is success
+    assert:
+      that: "'Success' in delete_ip_address.stdout"
+      msg: "CPS delete configuration of IP address failed"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Convert IP address {{IPAddr4}} to hexadecimal to delete the IP on {{test_int1}} on TR using CPS
+    command: bash -c "export IPAddress='{{IPAddr4}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
+    register: convert_ip_address_hex
+    when: inventory_hostname == "TR"
+  - name: TC1 - STDOUT the hexadecimal value of IP Address
+    debug:
+      msg: "{{convert_ip_address_hex.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Delete the interface IP address on {{test_int1}} link on TR
+    command: bash -c "cps_set_oid.py -qua target -oper delete base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name={{test_int1}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    register: delete_ip_address
+    when: inventory_hostname == "TR"
+  - name: TC1 - STDOUT the output of CPS set command to delete IP address
+    debug:
+      msg: "{{delete_ip_address.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC1 - Verify whether the CPS set of deleting IP address is success
+    assert:
+      that: "'Success' in delete_ip_address.stdout"
+      msg: "CPS delete configuration of IP address failed"
+    when: inventory_hostname == "TR"

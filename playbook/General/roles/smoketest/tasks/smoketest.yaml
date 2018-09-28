@@ -1,0 +1,485 @@
+---
+- name: Disable logging
+  become: true
+  command: bash -c "{{path}}/{{log_cmd}} disable all"
+  changed_when: False
+
+- name: SEND - ifconfig {{test_mgmtint}}
+  command: /sbin/ifconfig {{test_mgmtint}}
+  become: true
+  register: result_geteth0
+  changed_when: False
+- name: INFO - Eth0 status
+  debug:
+    msg: "{{result_geteth0.stdout}}"
+
+- name: SEND - route -n
+  command: /sbin/route -n
+  become: true
+  register: result_getroute
+  changed_when: False
+- name: INFO - Route status
+  debug:
+    msg: "{{result_getroute.stdout}}"
+
+- name: Check the status of redis-server
+  command: /bin/systemctl -l status redis-server
+  become: true
+  register: result_getredis
+  changed_when: False
+- name: INFO - REDIS status
+  debug:
+    msg: "{{result_getredis.stdout}}"
+- name: VERIFY - Check if REDIS is running
+  assert:
+    that: "'active (running)' in result_getredis.stdout"
+    msg:  "Expected active (running) status for REDISD."
+
+- name: Check the status of PAS service
+  command: /bin/systemctl -l status {{ service_pas }}
+  become: true
+  register: result_getpasd
+  changed_when: False
+- name: INFO - PASD status
+  debug:
+    msg: "{{result_getpasd.stdout}}"
+- name: VERIFY - Check if PASD is running
+  assert:
+    that: "'active (running)' in result_getpasd.stdout_lines[2]"
+    msg:  "Expected active (running) status for PASD."
+
+
+- name: Check the status of NAS service
+  command: /bin/systemctl -l status {{ service_nas }}
+  become: true
+  register: result_getnasd
+  changed_when: False
+- name: INFO - NASD status
+  debug:
+    msg: "{{result_getnasd.stdout}}"
+- name: VERIFY - Check if NASD is running
+  assert:
+    that: "'active (running)' in result_getnasd.stdout_lines[2]"
+    msg:  "Expected active (running) status for NASD."
+
+- name: Check the front panel ports are present
+  command: bash -c "ifconfig -a | grep BROADCAST -c"
+  become: true
+  register: result_getports
+  changed_when: False
+- name: INFO - Number of ports present
+  debug:
+    msg: "{{result_getports.stdout}}"
+- name:  VERIFY - Check if Ports are present
+  assert:
+    that: "0 <= {{result_getports.stdout_lines[0]|int}}"
+    msg:  "Expected to see at least 1 port"
+
+
+- block:
+  - name: SEND 
+    command:  bash -c "{{path}}/cps_get_oid.py -qua observed base-pas/entity"
+    become: true
+    register: result_pas_getcps
+    changed_when: False
+    ignore_errors: yes
+  - name: INFO 
+    debug:
+      msg: "{{result_pas_getcps.stdout}}"
+  - name: VERIFY
+    assert:
+      that: "'base-pas/entity' in result_pas_getcps.stdout"
+      msg: "Key or object doesn't exists"
+  rescue:
+  - name: DEBUG - Collecting data because the Test Failed on last VERIFY step
+    command: systemctl status {{ service_pas }}
+    become: true
+    register: result_debugStatus_pas_svc
+    changed_when: False
+  - name: INFO - Debug info collected
+    debug:
+      msg: "{{result_debugStatus_pas_svc.stdout}}"
+  - name: FAIL - Test Failed on last VERIFY step. Exit here, after collecting debug data above
+    fail:
+    when: "Key or Object not in cps get"
+
+- block:
+  - name: SEND cps_get_oid.py base-pas/chassis. Check the PAS entity returning object. Failure here means CPS get on PAS not working. Debug below.
+    command:  bash -c "{{path}}/cps_get_oid.py -qua observed base-pas/chassis"
+    become: true
+    register: result_pas_getcps
+    changed_when: False
+    ignore_errors: yes
+  - name: INFO If PAS not returning any object or keys means PAS service not working. Check debugs below
+    debug:
+      msg: "{{result_pas_getcps.stdout}}"
+  - name: VERIFY - Check if the PAS object or key exists. If result_pas_getcps does not have key or object,check the debug below to make sure PAS is running.
+    assert:
+      that: "'base-pas/chassis/base_mac_addresses = ''' in result_pas_getcps.stdout"
+      msg: "Key or object doesn't exists"
+  tags: ["Validate PAS","sanity"]
+  rescue:
+  - name: DEBUG - Collecting data because the Test Failed on last VERIFY step
+    command: systemctl status {{ service_pas }}
+    become: true
+    register: result_debugStatus_pas_svc
+    changed_when: False
+  - name: INFO - Debug info collected
+    debug:
+      msg: "{{result_debugStatus_pas_svc.stdout}}"
+  - name: FAIL - Test Failed on last VERIFY step. Exit here, after collecting debug data above
+    fail:
+    when: "Key or Object not in cps get"
+
+
+- name: Check the status of ACL service
+  shell: /bin/systemctl status {{ service_acl }}
+  become: true
+  ignore_errors: yes
+  register: result_getacl
+  changed_when: False
+- name: INFO - ACL INIT status
+  debug:
+    msg: "{{result_getacl.stdout}}"
+- name: VERIFY - Check if ACL INIT is loaded and exited successfully
+  assert:
+    that: "'Loaded: loaded' in result_getacl.stdout"
+    msg:  "Expected LOADED status for ACL INIT SERVICE."
+
+- name: Check the status of QoS service
+  command: /bin/systemctl -l status {{ service_qos }}
+  become: true
+  register: result_getqos
+  changed_when: False
+- name: INFO - QoS INIT status
+  debug:
+    msg: "{{result_getqos.stdout}}"
+- name: VERIFY - Check if QoS INIT is loaded and exited successfully
+  assert:
+    that: "'status=0/SUCCESS' in result_getqos.stdout"
+    msg:  "Expected SUCCESS status for QoS INIT SERVICE."
+
+- name: SEND - Config static route in kernel, ignoring errors if the route was previously configured (ip link set dev {{test_int1}} up; ip addr add {{test_route1}}/{{test_prefix}} dev {{test_int1}}; sysctl -w net.ipv4.ip_forward=1; ip route add {{test_route2}}/{{test_prefix}} scope global nexthop via {{test_via}})
+  command: bash -c "ip link set dev {{test_int1}} up; ip addr add {{test_route1}}/{{test_prefix}} dev {{test_int1}}; sysctl -w net.ipv4.ip_forward=1; ip route add {{test_route2}}/{{test_prefix}} scope global nexthop via {{test_via}}"
+  become: true
+  ignore_errors: yes
+  register: result_krouteconfigout
+  changed_when: False
+- name: INFO - Any messages printed during route configuration are shown here
+  debug:
+    msg: "{{result_krouteconfigout.stdout}}"
+- name: SEND - ip route show {{test_route2}}/{{test_prefix}}
+  command: ip route show {{test_route2}}/{{test_prefix}}
+  register: result_getkroute
+  changed_when: False
+- name: INFO - Route in kernel
+  debug:
+    msg: "{{result_getkroute.stdout}}"
+- name: SEND - route -n
+  command: /sbin/route -n
+  become: true
+  register: result_getroute2
+  changed_when: False
+- name: INFO - Route status
+  debug:
+    msg: "{{result_getroute2.stdout}}"
+- name: VERIFY - Check if kernel route is '{{test_route2}}/{{test_prefix}} via {{test_via}} dev {{test_int1}}' (ip route show {{test_route2}}/{{test_prefix}}) [SmokeTest_Forwarding]
+  assert:
+    that: "'{{test_route2}}/{{test_prefix}} via {{test_via}} dev {{test_int1}}' in result_getkroute.stdout_lines[0]"
+    msg:  "'{{test_route2}}/{{test_prefix}} via {{test_via}} dev {{test_int1}}' is not set."
+
+- block:
+  - name: SEND - cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 . A failure here could mean that the command didn't return any result (either bug or misconfig). Errors here are ignored, check the output next.
+    command:  bash -c "{{path}}/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix={{test_route2hex}} base-route/obj/entry/prefix-len={{test_prefix}}"
+    become: true
+    register: result_getcps1
+    changed_when: False
+    ignore_errors: yes
+  - name: INFO - NAS routes (if empty, then configuration was not applied or there is some bug)
+    debug:
+      msg: "{{result_getcps1.stdout}}"
+  - name: VERIFY - Check if the route 0x{{test_route2hex}} existse. If result_getcps1.stdout does not have an element, then the error is because the result of the previous command was empty. It could be a bug.
+    assert:
+      that: "'base-route/obj/entry/route-prefix = {{test_route2hex}}' in result_getcps1.stdout"
+      msg: "Route 0x{{test_route2hex}} not found"
+  rescue:
+  - name: DEBUG - Collecting data because the Test Failed on last VERIFY step
+    command: bash -c "ip route show"
+    register: result_debug_cpsfail
+    changed_when: False
+  - name: INFO - Debug info collected
+    debug:
+      msg: "{{result_debug_cpsfail}}"
+  - name: FAIL - Test Failed on last VERIFY step. Exit here, after collecting debug data above
+    fail:
+    when: "{{test_route2hex}} not in result_getcps1.stdout"
+
+- name: SEND - Unconfig static route in kernel
+  command: bash -c "ip route del {{test_route2}}/{{test_prefix}} scope global nexthop via {{test_via}}"
+  become: true
+  register: result_getkrouteunconfig
+- name: INFO - Issues during kernel route unconfig, if any, will be shown here
+  debug:
+    msg: "{{result_getkrouteunconfig.stdout}}"
+
+- name: SEND -Configure Static route through CPS ADD
+  command: bash -c "ip link set dev {{test_int1}} up; {{ path }}/cps_config_route.py --add --ip {{test_route2}} --nh {{test_via}}"
+  become: true
+  ignore_errors: yes
+  register: result_cpsaddroute
+  changed_when: False
+- name: INFO - Any messages printed during route configuration are shown here
+  debug:
+    msg: "{{result_cpsaddroute.stdout}}"
+- name: VERIFY- Check whether the CPS get succeeded
+  assert:
+    that: "'Success' in result_cpsaddroute.stdout"
+    msg: CPS set failed here
+- name: SEND - ip route show {{test_route2}}/{{test_cps_prefix}}
+  command: ip route show {{test_route2}}/{{test_cps_prefix}}
+  register: result_getkroute
+  changed_when: False
+- name: VERIFY - the route is present in kernel
+  assert:
+    that: "'{{test_route2}}' in result_getkroute.stdout"
+    msg: "'{{test_route2}}' is not programmed in kernel"
+- name: SEND -CPS GET from NAS
+  command:  bash -c "{{path}}/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix={{test_route2hex}} base-route/obj/entry/prefix-len={{test_cps_prefix}}"
+  become: true
+  register: result_getcps1
+  changed_when: False
+  ignore_errors: yes
+- name: INFO - NAS routes (if empty, then configuration was not applied or there is some bug)
+  debug:
+    msg: "{{result_getcps1.stdout}}"
+- name: VERIFY - Check if the route 0x{{test_route2hex}} exists. If result_getcps1.stdout does not have an element, then the error is because the result of the previous command was empty. It could be a bug.
+  assert:
+    that: "'base-route/obj/entry/route-prefix = {{test_route2hex}}' in result_getcps1.stdout"
+    msg: "Route 0x{{test_route2hex}} not found"
+
+- name: SEND -Unconfigure Static route through CPS Delete
+  command: bash -c "{{path}}/cps_config_route.py --del --ip {{test_route2}}; ip addr del {{test_route1}}/{{test_prefix}} dev {{test_int1}}"
+  become: true
+  ignore_errors: yes
+  register: result_cpsdelroute
+  changed_when: False
+- name: INFO - Any messages printed during route configuration are shown here
+  debug:
+    msg: "{{result_cpsdelroute.stdout}}"
+- name: VERIFY- Check whether the CPS deleting command succeeded
+  assert:
+    that: "'Success' in result_cpsaddroute.stdout"
+    msg: CPS delete failed here
+- name: SEND - ip route show {{test_route2}}/{{test_cps_prefix}}
+  command: ip route show {{test_route2}}/{{test_cps_prefix}}
+  register: result_getkroute
+  changed_when: False
+- name: VERIFY - the route is not present in kernel
+  assert:
+    that: "'' in result_getkroute.stdout"
+    msg: "'{{test_route2}}' is not deleted from kernel"
+- name: SEND -CPS GET from NAS
+  command:  bash -c "{{path}}/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix={{test_route2hex}} base-route/obj/entry/prefix-len={{test_cps_prefix}}"
+  register: result_getcps1
+  become: true
+  changed_when: False
+  ignore_errors: yes
+- name: INFO - NAS routes should be empty
+  debug:
+    msg: "{{result_getcps1.stdout}}"
+- name: VERIFY - Check if the route 0x{{test_route2hex}} does not exists. If result_getcps1.stdout does have an element, then the error is CPS deletion is not working
+  assert:
+    that: "'' in result_getcps1.stdout"
+    msg: "Route 0x{{test_route2hex}} is found in NAS. CPS deletion failed"
+
+- name: SEND -Configure VLAN and add untagged ports using CPS set
+  command: bash -c "ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; {{ path }}/cps_config_vlan.py --add --id {{test_vlan}} --port {{test_int1}},{{test_int2}} --vlantype 1"
+  become: true
+  ignore_errors: yes
+  register: result_cpsvlanadd
+  changed_when: False
+- name: INFO - Any messages printed during VLAN configuration are shown here
+  debug:
+    msg: "{{result_cpsvlanadd.stdout}}"
+- name: VERIFY- Check whether the CPS get succeeded
+  assert:
+    that: "'Success' in result_cpsvlanadd.stdout"
+    msg: CPS set failed here
+- name: SEND -CPS GET from NAS
+  command:  bash -c "{{path}}/cps_config_vlan.py --show"
+  become: true
+  register: result_getvlancps
+  changed_when: False
+  ignore_errors: yes
+- name: INFO- Dumping VLAN Entry with the untagged ports
+  debug:
+    msg: "{{result_getvlancps.stdout}}"
+- name: VERIFY - Check if the vlan {{test_vlan}} exists. If the vlan  does not exists, then CPS get failed.
+  assert:
+    that: "'base-if-vlan/if/interfaces/interface/id = {{test_vlan}}' in result_getvlancps.stdout"
+    msg: "VLAN {{test_vlan}} not found in NAS"
+- name: VERIFY - Check if the vlan {{test_vlan}} have untagged ports
+  assert:
+    that: "'dell-if/if/interfaces/interface/untagged-ports = {{test_int2}},{{test_int1}}' in result_getvlancps.stdout"
+    msg: "Untagged ports {{test_int1}},{{test_int2}} not present in CPS get"
+
+
+- name: SEND -Delete one of the untagged port in vlan {{test_vlan}} using CPS set
+  command: bash -c "ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; {{ path }}/cps_config_vlan.py --addport --name br{{test_vlan}} --port {{test_int2}}"
+  become: true
+  ignore_errors: yes
+  register: result_cpsvlanupdate
+  changed_when: False
+- name: INFO - Any messages printed during VLAN configuration are shown here
+  debug:
+    msg: "{{result_cpsvlanupdate.stdout}}"
+- name: VERIFY- Check whether the CPS get succeeded
+  assert:
+    that: "'Success' in result_cpsvlanupdate.stdout"
+    msg: CPS set failed here
+- name: SEND -CPS GET from NAS
+  command:  bash -c "{{path}}/cps_config_vlan.py --show"
+  become: true
+  register: result_getvlancps
+  changed_when: False
+  ignore_errors: yes
+- name: INFO- Dumping VLAN Entry with the updated untagged ports
+  debug:
+    msg: "{{result_getvlancps.stdout}}"
+- name: VERIFY - Check if the vlan {{test_vlan}} exists. If the vlan  does not exists, then CPS get failed.
+  assert:
+    that: "'base-if-vlan/if/interfaces/interface/id = {{test_vlan}}' in result_getvlancps.stdout"
+    msg: "VLAN {{test_vlan}} not found in NAS"
+- name: VERIFY - Check if the vlan {{test_vlan}} have the updated untagged ports
+  assert:
+    that: "'dell-if/if/interfaces/interface/untagged-ports = {{test_int2}}' in result_getvlancps.stdout"
+    msg: "Untagged ports {{test_int1}} is present in CPS get"
+
+
+- name: SEND -Delete the vlan {{test_vlan}} using CPS set
+  command: bash -c "ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; {{ path }}/cps_config_vlan.py --del --name br{{test_vlan}}"
+  become: true
+  ignore_errors: yes
+  register: result_cpsvlandel
+  changed_when: False
+- name: INFO - Any messages printed during VLAN deletion are shown here
+  debug:
+    msg: "{{result_cpsvlandel.stdout}}"
+- name: VERIFY- Check whether the CPS get succeeded
+  assert:
+    that: "'Success' in result_cpsvlandel.stdout"
+    msg: CPS set failed here
+- name: SEND -CPS GET from NAS
+  command:  bash -c "{{path}}/cps_config_vlan.py --show"
+  become: true
+  register: result_getvlancps
+  changed_when: False
+  ignore_errors: yes
+- name: INFO- Dumping VLAN entry using CPS Get
+  debug:
+    msg: "{{result_getvlancps.stdout}}"
+- name: VERIFY - Check if the vlan {{test_vlan}} exists. If the vlan  does not exists, then CPS get passed.
+  assert:
+    that: "'' in result_getvlancps.stdout"
+    msg: "VLAN {{test_vlan}} found in NAS"
+
+- name: SEND - Unconfig ip address in kernel
+  command: bash -c "sysctl -w net.ipv4.ip_forward=1; ip addr flush dev {{test_int1}}; ip addr flush dev {{test_int2}}; ip link set dev {{test_int1}} down; ip link set dev {{test_int2}} down"
+  become: true
+  register: result_getkrouteunconfig
+- name: INFO - Issues during kernel route unconfig, if any, will be shown here
+  debug:
+    msg: "{{result_getkrouteunconfig.stdout}}"
+
+- block:
+  - name: SEND - systemctl is-system-running
+    command: systemctl is-system-running
+    become: true
+    register: result_getservicestat
+    changed_when: False
+    ignore_errors: yes
+  - name: INFO - Systemctl service status
+    debug:
+      msg: "{{result_getservicestat.stdout}}"
+  - name: VERIFY - Check Systemctl service status [SmokeTest_Systemctl]
+    assert:
+      that: "'running' or 'degraded' in result_getservicestat.stdout_lines[0]"
+      msg:  "Expected 'running' status."
+  rescue:
+  - name: DEBUG - Collecting data because the Test Failed on last VERIFY step
+    command: systemctl list-units --type=service --state=failed
+    become: true
+    register: result_debugStatus_svc
+    changed_when: False
+  - name: INFO - Debug info collected
+    debug:
+      msg: "{{result_debugStatus_svc.stdout}}"
+  - name: FAIL - Test Failed on last VERIFY step. Exit here, after collecting debug data above
+    fail:
+    when: "'failed' in result_debugStatus_svc.stdout"
+
+- name: Remove the cloud-init service from AWS
+  become: true
+  apt:
+    name: cloud-init
+    state: absent
+    purge: yes
+
+- name: Reset the failed units in systemctl
+  command: systemctl reset-failed
+  become: true
+  register: result_systemctl_failed_units
+  changed_when: False
+
+- name: SEND - systemctl --all --state=failed list-units
+  command: systemctl --all --state=failed list-units
+  become: true
+  register: result_getservicesfailstat
+  changed_when: False
+- name: INFO - Failed Systemctl
+  debug:
+    msg: "{{result_getservicesfailstat.stdout}}"
+- name:   VERIFY - Check for failed Systemctl units [SmokeTest_Systemctl]
+  assert:
+    that: "'0 loaded units listed.' == result_getservicesfailstat.stdout_lines[0]"
+    msg:  "One or more units failed."
+
+
+- name: VERIFY - Check if  Aptlist Installed command execution is successfull (apt list --installed) [SmokeTest_Aptlist_Installed]
+  command: apt list --installed
+  become: true
+  register: result_getaptlistcmd
+  changed_when: False
+- name: INFO - Aptlist Installed
+  debug:
+    msg: "{{result_getaptlistcmd.stdout}}"
+
+- block:
+  - name: Environment check
+    command: bash -c "{{path}}/{{show_env}}"
+    become: true
+    register: result_getenv
+    changed_when: False
+  - name: INFO - List of all env like power supply, fans status
+    debug:
+      msg: "{{result_getenv.stdout}}"
+  - name: VERIFY - Show env command is working
+    assert:
+      that: "'Temperature sensors' in result_getenv.stdout"
+      msg:  "Error when executing command."
+
+
+- block:
+  - name: SEND - opx-show-transceivers all
+    command: bash -c "{{path}}/{{show_media}} all"
+    become: true
+    register: result_gettransceivers
+    changed_when: False
+  - name: INFO - List of all tranceivers inserted to the ports
+    debug:
+      msg: "{{result_gettransceivers.stdout}}"
+  - name: VERIFY - Show transceivers command is working [SmokeTest_Show_Transceivers]
+    assert:
+      that: "'base-pas/media' in result_gettransceivers.stdout"
+      msg:  "Error when executing command."
+...
