@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+auto eth0
+iface eth0 inet static
+    address {{ ansible_host }}
+    netmask {{ ansible_host_netmask }}
+    gateway {{ ansible_host_gateway }}
+    dns-nameservers 8.8.8.8

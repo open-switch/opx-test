@@ -1,0 +1,51 @@
+---
+
+- hosts: 1host
+  gather_facts: false
+  pre_tasks:
+    - setup:
+  become: true
+  roles:
+    - {role: General/roles/smoketest, tags: ['smoketest']}
+
+- hosts: 2host
+  gather_facts: false
+  become: true
+  pre_tasks:
+     - setup:
+  roles:
+    - {role: L2/roles/l2mac, tags: ['l2mac']}
+
+- hosts: 2host
+  gather_facts: false
+  become: true
+  pre_tasks:
+     - setup:
+  roles:
+    - {role: L2/roles/l3_intra_inter, tags: ['l3_intra_inter']}
+
+- hosts: 2host
+  gather_facts: false
+  become: true
+  pre_tasks:
+     - setup:
+  roles:
+    - {role: L2/roles/l2_stp, tags: ['l2_stp']}
+
+
+- hosts: 2host
+  gather_facts: false
+  become: true
+  pre_tasks:
+     - setup:
+  roles:
+    - {role: Forwarding/roles/span_mirroring, tags: ['span_mirroring']}
+
+
+- hosts: 1host
+  gather_facts: false
+  pre_tasks:
+    - setup:
+  become: false
+  roles:
+    - {role: General/roles/img_install, tags: ['img_install']}

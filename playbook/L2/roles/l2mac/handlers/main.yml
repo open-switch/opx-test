@@ -1,0 +1,4 @@
+---
+# handlers file for l2mac
+
+- include: syslog.yml

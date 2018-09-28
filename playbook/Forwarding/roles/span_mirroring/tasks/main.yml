@@ -1,0 +1,4 @@
+---
+# tasks file for span_mirroring
+
+- include: span_mirroring.yaml

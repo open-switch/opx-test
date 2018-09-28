@@ -1,0 +1,18 @@
+---
+
+- name: Copy the syslogs from DUT to the local machine
+  fetch:
+    src: /var/log/syslog
+    dest: /tmp/TC1_l2mac_{{inventory_hostname}}
+    mode: 0755
+    flat: yes
+  when: inventory_hostname == "DUT"
+
+
+- name: Copy the syslogs from TR to the local machine
+  fetch:
+    src: /var/log/syslog
+    dest: /tmp/TC1_l2mac_{{inventory_hostname}}
+    mode: 0755
+    flat: yes
+  when: inventory_hostname == "TR"

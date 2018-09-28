@@ -1,0 +1,5 @@
+---
+
+# Server link is connected to DUT and TR (Server1 and Server2 are two seperate VMs connected to DUT and TR)
+
+server_link:    "ens192"

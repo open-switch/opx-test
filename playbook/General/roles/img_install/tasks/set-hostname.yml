@@ -1,0 +1,54 @@
+---
+##### Ansible task to set hostname and populate /etc/hosts file.
+##### (c) 2018 Dell Technologies
+
+- name: Added default nameserver if needed.
+  become: yes
+  lineinfile: >
+    dest=/etc/resolv.conf
+    regexp="nameserver"
+    line="nameserver 8.8.8.8"
+    state=present
+    backup=yes
+  when: hostvars[item].ansible_default_ipv4 is defined and hostvars[item].ansible_default_ipv4.address is defined
+  with_items: "{{ groups['all'] }}"
+  
+- name: Configure default gateway if needed.
+  become: yes
+  vars: 
+    gw: "{{ ansible_host_gateway|default('172.17.100.254') }}"
+  shell: "route -n | grep -E '0.0.0.0\\s+{{ gw }}' || route add default gateway {{ gw }}"
+  ignore_errors: yes
+
+- name: Install DBUS service (needed for ansible to set hostname)
+  become: yes
+  apt:
+    name: dbus
+    state: present
+
+- hostname: name={{ inventory_hostname }}
+  become: yes
+
+- name: Re-gather facts
+  become: yes
+  action: setup
+
+#- name: list host vars
+#  debug: 
+#    msg:  "{{ item }}={{ hostvars[inventory_hostname]['ansible_default_ipv4'][item] }}"
+#  with_items: "{{ hostvars[inventory_hostname]['ansible_default_ipv4'].keys() }}"
+
+  
+# Idempotent way to build a /etc/hosts file with Ansible using your Ansible hosts inventory for a source.
+# Will include all hosts the playbook is run on.
+- name: Build hosts file (backups will be made)
+  become: yes
+  #debug: msg={{ item }}
+  lineinfile: >
+    dest=/etc/hosts 
+    regexp='{{ hostvars[item].ansible_hostname }}$' 
+    line='{{ hostvars[item].ansible_default_ipv4.address }} {{ item }} {{ hostvars[item].ansible_hostname }}' 
+    state=present 
+    backup=yes
+  when: hostvars[item].ansible_default_ipv4 is defined and hostvars[item].ansible_default_ipv4.address is defined
+  with_items: "{{ groups['all'] }}"

@@ -1,0 +1,16 @@
+---
+# Fanoutport is used for the connection between DUT and Server1, TR and Server2
+# Splitport is used to fan out the port according to the speed which is defined as speed
+# server_link is the link on the server side(Server1 and Server2)
+# test_int1, test_int2 and test_int3 are the ports connected between DUT and TR
+
+
+fanoutport:  "e101-027-0"
+splitport:   "4x1"
+speed:    "10g"
+server_int:   "e101-027-1"
+test_int1:   "e101-001-0"
+test_int2:   "e101-002-0"
+test_int3:   "e101-003-0"
+server_link: "ens192"
+test_mgmtint:   "eth0"

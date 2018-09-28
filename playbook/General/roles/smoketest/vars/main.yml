@@ -1,0 +1,11 @@
+---
+# vars file for smoketest
+
+test_route1:    100.0.0.1
+test_route2:    20.0.0.0
+test_mac   :    00:11:22:33:44:55
+test_vlan  :    100
+test_prefix:    24
+test_cps_prefix: 32
+test_route2hex: 14000000
+test_via:       100.0.0.2
