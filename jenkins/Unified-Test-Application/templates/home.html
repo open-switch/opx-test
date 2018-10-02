@@ -1,0 +1,119 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+
+<style>
+span{
+
+display:none;
+font-style: italic;
+font-size: 16px;
+
+}
+
+.wrap {
+width: 100%;
+}
+
+.left {
+    float: left;
+    width: 50%;
+}
+
+.left2 {
+    float: left;
+    width: 50%;
+}
+.submit{
+
+    width: 100%;
+    border: none;
+    background-color: #ccd7de;
+    color: black;
+    padding: 14px 28px;
+    font-size: 16px;
+    cursor: pointer;
+    text-align: center;
+    position: bottom;
+}
+.submit:hover{
+  background-color:white;
+  color: black;
+}
+.submit:focus{
+  background-color: #7f95a2 ;
+  color:black;
+}
+
+.jumbotron{
+padding-top:2px;
+height:120px;
+}
+.sub-menu {
+    position: absolute;
+    z-index: 1000;
+    /* color: #fff;
+    right: 5px; */
+}
+
+.sub-menu li {
+    display: none;
+}
+
+</style> 
+<script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function() {
+delay=0;  fade=350;    
+$("span").each(function(i, e) {
+         $(this).delay(delay).fadeIn(fade);
+         delay +=80; fade+=90;       
+});
+});
+
+</script>
+
+<div class="w3-container">
+<div class="jumbotron text-center">
+<h1>Welcome To Unified-Testing</h1>
+<!--<p class="lead"><b>This framework is to test the regression script of all the modules</b></p> -->
+</div>
+<div class="col-lg-6">
+<button type="button" class="button" style="height:250px; width:80%; border-radius:4%;float:left;" value="Run Playbooks" onclick="window.open('/GetStarted')" ><h4><b>Click to Run Playbooks</b> </h4></button>
+
+</div>
+<div class="col-lg-6">
+<div class="button" style="height:250px;margin-top:3px; width:80%; border-radius:4%;float:left;"  >
+
+<form action="/search" style="" method="post">
+    <h4><b> search specific Test type</b></h4>
+    <input type="radio" id="testtype" name="testtype" checked="checked" value="sanity" style="margin:15px;align:center;"> sanity <br>
+    <!--  <input type="radio" id="testtype" name="testtype" value="nightly"  style="margin:15px;align:center;"> nightly <br> -->
+    <input type="radio" id="testtype" name="testtype" value="full"  style="margin:15px;align:center;"> full
+    <button class="submit" type="input"><b>Submit</b></button>
+</form>
+
+</div>
+</div>
+<div class="left">
+<h3> <b>Features of the App.</b> </h3>
+
+<span> 1. This framework is to test the regression scripts of all the modules </span> <br>
+<span >2. END-TO-END automated test scheduling,execution and reporting</span>
+<br>
+<span>3. Ease of Use</span>
+<br>
+<!--<span>4. Auto filteration of files  required for testing</span>
+<br>-->
+<span>4. Online editing of required files</span>
+<br>
+<span>5. Common platform for Smoke, Sanity and Full Regression testing</span>
+<br>
+<br>
+<br>
+<br>
+</div>
+</div>
+
+{% endblock %}
