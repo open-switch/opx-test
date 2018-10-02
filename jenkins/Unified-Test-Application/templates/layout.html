@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+
+<style>
+
+
+.button {
+      background-color: #008CBA; /* Blue */
+      color: white;
+        padding: 10px 25px;
+        font-size: 13px;
+        }
+
+.text_input_style {margin-bottom:0;}
+.help_text_style {margin-top:0;
+                  clear:both;
+                  margin-left:175px;
+                  color: grey;
+                  font-size:10px;}
+
+
+</style>
+  <head>
+    <meta charset="utf-8">
+    <title>Unified-Testing</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  </head>
+  <body>
+    {% include 'includes/_navbar.html' %}
+    <div class="container">
+      {% block body %}{% endblock %}
+    </div>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  </body>
+</html>
