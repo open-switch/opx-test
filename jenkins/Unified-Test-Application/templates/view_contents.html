@@ -1,0 +1,27 @@
+<html>
+<body>
+<style>
+    .button {
+    background-color: #008CBA; /* Blue */
+    color: white;
+    padding: 10px 25px;
+    font-size: 13px;
+
+    }
+</style>
+
+<table>
+    <tr>
+    <td colspan="2">
+    <h3>File Location: {{file_location}} </h3>
+    <form action={{submit_route}} id="textform" method="post"><textarea name="text" id="inputTextToSave" cols="166" rows="34">{{contents}}</textarea>  </td> </tr>
+    <tr><td>
+    <input type="hidden" name="file-path" id="file-path" value={{file_location}} />
+    <input type="submit" value="Save the changes" class="button" /></form>
+    <button onclick="self.close()" class="button"> No changes</button> </td>
+    </tr>
+</table>
+
+</body>
+</html>
+

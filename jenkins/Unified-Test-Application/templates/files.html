@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+{% extends 'layout.html' %}
+{% block body %}
+
+<style>
+
+li:before {
+  color: green;
+}
+
+li { 
+    padding-left: 16px; 
+    font-size: 18px;
+}
+
+li:hover {
+    color: red;
+}
+
+li:visited {
+    color: green;
+} 
+
+h3 {
+    text-decoration: underline;
+}
+</style>
+
+
+<h3> <i>View or Edit files</i> </h3>
+<ul>
+    {% for file in files %}
+    <li><a type="text/plain" href="{{ url_for(route, req_path=file, test=test) }}">{{ file }}</a></li>
+    {% endfor %}
+</ul>
+
+{% endblock %}

@@ -1,0 +1,35 @@
+- job-template:
+    builders:
+    - opx-test:
+        playbookPath: '{{playbookPath}}'
+        hostsPath: '{{hostsPath}}'
+        tags: '{{tags}}'
+        extraVars: '{{extraVars}}'
+    concurrent: true
+    name: '{{jjb_name}}'
+    publishers:
+    - post-ws-clean
+    - email-ext:
+        recipients: '{{mail-to}}'
+        content-type: html
+        body: $DEFAULT_CONTENT
+        attach-build-log: false
+        always: true
+        failure: false
+    - raw:
+          xml: |
+            <hudson.tasks.BuildTrigger> 
+              <childProjects>foo</childProjects> 
+              <threshold> 
+                <name>SUCCESS</name> 
+                <ordinal>0</ordinal>  
+                <completeBuild>true</completeBuild> 
+              </threshold> 
+            </hudson.tasks.BuildTrigger>
+    wrappers:
+    - build-timeout:
+        timeout: 120
+- project:
+    jobs:
+    - '{{jjb_name}}'
+    name: '{{jjb_name}}'
