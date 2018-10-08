@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+
+{% extends 'layout.html' %}
+{% block body %}
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/jstree/3.3.3/themes/default/style.min.css" />
+</style>
+<script src="https://code.jquery.com/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+</head>
+<body>
+<style>
+body{font-family:Arial, Helvetica, sans-serif;}
+
+.submitbutton2{
+
+    width: 100%;
+    border: none;
+    background-color:#008CBA;
+    padding: 14px 28px;
+    font-size: 16px;
+    cursor: pointer;
+    text-align: center;
+    position: bottom;
+}
+.submitbutton2:hover{
+  background-color:gray;
+}
+.pop-inner {
+  background-color: #fff;
+  max-width: 98%;
+  max-height: 98%;
+  padding: 25px;
+  margin: 5% auto;
+  overflow:auto;
+  resize:both;
+ }
+.tasks{
+ background-color:#bed7e7;
+ border-style:double;
+ border-width: 2px;
+ border-color: gray;
+ border-radius: 4px;
+ width: 100%;
+ height: 98%;
+}
+.listbox{
+ border-style: groove;
+ border-width: 2px;
+ border-color: gray;
+ border-radius: 4px;
+ width: 100%;
+ height: 98%;
+}
+
+#list{
+text-indent: 10px; 
+}
+</style>
+
+<script type="text/javascript" src="{{ url_for('static', filename='js/jquery-1.12.4.min.js') }}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.3/jstree.min.js"></script>
+
+<script>
+$(function (){
+ var tasks = {{ finalTasks|safe }}
+ console.log(tasks);
+  list = [];
+  for(i=0; i<(tasks.length); i++){
+
+     list.push("<li style='list-style:none;margin-left:10px;'><input class='all'  id='check' type='checkbox' name='chklist'>"+tasks[i]+"</input></li>");
+}
+
+$('#list').html(list)
+$("#checkAll").click(function() {
+$(".all").prop("checked", $("#checkAll").prop("checked"))
+})
+
+$(".submitbutton2").click(function() {
+console.log("INSIDE SUBMIT");
+var Tasks = [];  //TASK TAGS LIST
+    $("[name='chklist']").each(function (index, data){
+        if (data.checked) {
+           Tasks.push(data.nextSibling.textContent);
+        }
+
+    });
+    console.log("this is selected tasks  "+Tasks);
+
+	document.getElementById('task_selected').value = Tasks;
+        $.ajax({
+
+            url: '/Ansible/test_Job',
+            data: $('#new').serialize(),
+            type: 'POST',
+            
+        });
+});
+});
+
+function validate() {
+var Tasks = [];  //TASK TAGS LIST
+    $("[name='chklist']").each(function (index, data){
+        if (data.checked) {
+           Tasks.push(data.nextSibling.textContent);
+        }
+
+    });
+
+var isValid = true;
+if (Tasks.length == 0){isValid = false;}
+if (!isValid) alert("Please select atleast one task to move forward");
+return isValid;
+}
+</script> 
+
+<form id="new" onsubmit="return validate();" action="{{ url_for('Ansible_test_Job')}}" method="post" target="_blank">
+<div class="tasks"style="float:center;text-align:center;"> 
+<h3><b>TASKS</b></h3>
+<h4 id="testtype"><b>TEST TYPE:  {{ option }}</b></h4>
+</div>
+<div class="listbox">
+<input type="hidden" name="task_selected" id="task_selected" value="" />
+<div class="pop-inner" id="pop-inner">
+<li style='list-style:none;margin-top:25px;'><input class='all'  id='checkAll' type='checkbox' name='check'><b>SELECT ALL</b></input></li>
+<br>
+<ul id="list" ></ul>
+<br> 
+<label><b>EMAIL </b></label><input type=" text" placeholder="example@email.com" name="email" size="70" /><br>
+<button class="submitbutton2" type="submit" data-toggle="tooltip" title="Click to run Jenkins Jobs"><b> SUBMIT</b> </button>
+
+</div>
+</div>
+</form>
+</body>
+{% endblock %}
+

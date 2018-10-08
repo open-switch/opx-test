@@ -1,10 +1,10 @@
 [1host]
 
-DUT ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>'
+DUT ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>' ansible_console='<consoleip>' console_port='<consoleport>' ansible_host_gateway='<gwip>' ansible_host_netmask='<netmask>'
 
 [2host]
 
-DUT ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>'
-TR ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>'
+DUT ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>' ansible_console='<consoleip>' console_port='<consoleport>' ansible_host_gateway='<gwip>' ansible_host_netmask='<netmask>'
+TR ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>' ansible_console='<consoleip>' console_port='<consoleport>' ansible_host_gateway='<gwip>' ansible_host_netmask='<netmask>'
 Server1 ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>'
 Server2 ansible_host='<Mgmt-IP>' ansible_ssh_user='<username>' ansible_ssh_pass='<password>' ansible_sudo_pass='<sudo password>'

@@ -1,0 +1,82 @@
+# =============================================================================
+# Builders
+# =============================================================================
+
+#- builder:
+#    name: opx-test
+#    builders:
+#      - ansible-playbook:
+#          playbook: {playbookPath}
+#          inventory-type: "path"
+#          inventory:
+#            path: {hostsPath}
+#          tags-to-run: {tagToRun}
+#          tags-to-skip: {tagToSkip}
+#          task-to-start-at: {tagToStart}
+##          sudo: true
+##          sudo-user: {sudoUser}
+#          unbuffered-output: false
+#          colorized-output: true
+#          host-key-checking: false
+#          additional-parameters: "-vvv"
+
+- builder:
+    name: opx-test
+    builders:
+      - shell: |
+          #!/bin/bash -xe 
+          export ANSIBLE_FORCE_COLOR=True
+          ansible-playbook {playbookPath} -i {hostsPath}  --tags {tags} --extra-vars {extraVars} -vv
+
+- builder:
+    name: print-environment
+    builders:
+      - shell: |
+          #!/bin/bash -xe
+          export
+
+- publisher:
+    name: post-ws-clean
+    publishers:
+      - workspace-cleanup:
+          dirmatch: true
+          include:
+            - "*.*"
+            - "*"
+          clean-if:
+            - success: true
+            - unstable: true
+            - not-built: true
+            - aborted: true
+            - failure: true
+          fail-build: false
+
+
+- wrapper:
+    name: build-timeout
+    wrappers:
+      - timeout:
+          timeout: '{timeout}'
+          timeout-var: 'BUILD_TIMEOUT'
+          fail: true
+      - ansicolor:
+          colormap: xterm
+
+
+# =============================================================================
+# Defaults
+# =============================================================================
+
+- defaults:
+    name: global
+    description: |
+        Do not edit via web.
+    retry-count: 3
+    logrotate:
+        daysToKeep: 20
+        numToKeep: 10
+        artifactDaysToKeep: -1
+        artifactNumToKeep: -1
+    wrappers:
+      - ansicolor:
+          colormap: xterm

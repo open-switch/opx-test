@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+
+{% extends 'layout.html' %}
+{% block body %}
+
+<head>
+     <meta charset="utf-8">
+     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+     <meta name="viewport" content="width=device-width, initial-scale=1">
+     <title>OPX test infra</title>
+     <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/jstree/3.3.3/themes/default/style.min.css" />
+     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+</head>
+
+<body>
+
+<style>
+
+body {
+font-family:Arial, Helvetica, sans-serif;
+background: linear-gradient(to bottom, #ffffff 0%, #ccffff 103%); 
+}
+.column {
+     float: left;
+     width: 25%;
+     max-height: 60%;
+     overflow:auto;
+     margin-top: 14px;
+     padding: 5px;
+     resize: vertical;
+}
+.column2{
+     margin-left: 10px;
+     margin-right:0px;
+     float: left;
+     width: 74%;
+     height:65%;
+     max-height:65%;	
+     overflow: auto;
+     border-left-style: solid;
+     border-width: 1.3px;
+     border-color: gray;
+     border-radius: 3px;
+     padding-left:5px;
+     resize: vertical;
+}
+/* Clear floats after the columns */
+.row:after {
+     content: "";
+     display: table;
+     clear: both;
+}
+.box{
+     border-style: none;
+     border-width: 2px; 
+     border-color: gray;
+     border-radius: 1px;
+     width: 100%;
+     height: 98%;
+}
+.Submit{
+     bottom: 100%;
+     border: none;
+     border-radius:4px;
+     float:none;
+     background-color:#008CBA;
+     margin-top:10px;
+     margin-bottom:10px;
+     padding: 10px 14px;
+     font-size: 14px;
+     cursor: pointer;
+     text-align: center;
+     position: bottom;
+}
+.Submit:hover{
+     background-color:gray;
+}
+.formClass{
+     margin: 10px 10px;
+}
+#treedisp {
+     font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+     border-collapse: collapse;
+     width: 100%;
+}
+#treedisp td, #treedisp th {
+     border: 1px solid #ddd;
+     padding: 1px;
+     text-align:center;
+     margin-bottom:0px;
+}
+
+#treedisp tr:nth-child(even){background-color: #f2f2f2;}
+
+#treedisp tr:hover {background-color: #ddd;}
+
+#treedisp th {
+     padding-top: 3px;
+     padding-bottom: 1px;
+     table-layout: auto;
+     text-align: center;
+     background-color:#008CBA ;
+     color: white;
+}
+#MasterTree {
+     font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+     border-collapse: collapse;
+     width: 100%;
+}
+#MasterTree td, #MasterTree th {
+     border: 1px solid #ddd;
+     padding: 2px;
+     text-align:center;
+}
+#MasterTree tr:nth-child(even){background-color: #f2f2f2;}
+#MasterTree tr:hover {background-color: #ddd;}
+#MasterTree th {
+     padding-top: 3px;
+     padding-bottom: 3px;
+     text-align: center;
+     background-color:#008CBA ;
+     color: white;
+     width:auto;
+     height:auto;
+}
+
+ /* The Modal (background) */
+.submitbutton{
+     width: 100%;
+     border: none;
+     background-color:#008CBA;
+     padding: 14px 28px;
+     font-size: 16px;
+     cursor: pointer;
+     text-align: center;
+     position: bottom;
+}
+.submitbutton:hover{
+     background-color:gray;
+}
+.pop-outer {
+     background-color: rgba(0, 0, 0, 0.5);
+     position: fixed;
+     top: 0;
+     left: 0;
+     width: 100%;
+     height: 100%;
+}
+.pop-inner {
+     background-color: #fff;
+     max-width: 700px;
+     max-height: 300px;
+     padding: 25px;
+     margin: 5% auto;
+     overflow:auto;
+}
+.statusbar {
+      counter-reset: step;
+      padding-bottom: 50px;
+  }
+.statusbar li {
+      list-style-type: none;
+      width: 32%;
+      float: left;
+      font-size: 12px;
+      position: relative;
+      text-align: center;
+      text-transform: uppercase;
+      color: #7d7d7d;
+}
+.statusbar li:before {
+      width: 30px;
+      height: 30px;
+      content: counter(step);
+      counter-increment: step;
+      line-height: 30px;
+      border: 2px solid #7d7d7d;
+      display: block;
+      text-align: center;
+      margin: 0 auto 10px auto;
+      border-radius: 50%;
+      background-color: white;
+}
+.statusbar li:after {
+      width: 100%;
+      height: 2px;
+      content: '';
+      position: absolute;
+      background-color: #7d7d7d;
+      top: 15px;
+      left: -50%;
+      z-index: -1;
+}
+.statusbar li:first-child:after {
+      content: none;
+}
+.statusbar li.active {
+      color: #008CBA;
+      font-weight: bold;
+}
+.statusbar li.active:before {
+      border-color: #57d62a;
+}
+.statusbar li.active + li:after {
+      background-color: #57d62a;
+}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.3/jstree.min.js"></script>
+<script>
+var myList;
+var td_first_popup;
+var arr=[];
+
+$(function () 
+{
+	$('#container').jstree({
+	"checkbox": { "three_state": false },
+	"plugins" : ["search", "checkbox"]
+	});
+	$('#container').on("changed.jstree", function (e, data) {
+		console.log("data seelcted is",data.selected);
+		console.log('Cheked:', $('#container').jstree('get_checked'));
+		if (data.selected.length >0)
+		{    
+			$("li.second").addClass("active"); 		
+			var i, j, r = [];	
+		for(i = 0, j = data.selected.length; i < j; i++) {
+			console.log(data.instance.get_node(data.selected[i]).text);
+			r.push(data.instance.get_node(data.selected[i]).text);
+		}
+		console.log('whole selected arrayy',r);
+		j = (data.selected.length - 1);
+		console.log(data.instance.get_node(data.selected[j]).text);
+		value_jsfields= data.instance.get_node(data.selected[j]).text;
+		document.getElementById('jsfields').value =value_jsfields; 
+		console.log('last value jsfields', value_jsfields);	
+		console.log(value_jsfields);
+		$.ajax({
+		url: '/read',
+		data: $('#new').serialize(),
+		type: 'POST',
+		success: function(response) { 
+		dummyList=response;   
+		//Code to generate table 
+		var JsonObj=$.parseJSON(JSON.stringify(dummyList));
+		var dic = {};
+		//Read the selected roles
+		for (var i = 0; i < JsonObj.length; i++){
+		var jsonVal = JsonObj[i];
+		var $removeButton=$("<input type='image' src='../static/if_basket_1814090.png' name='image'>");//button to remove a row from the table
+		var $linkForPlaybook =$("<a class='redirectPlaybook' id='playbook' href='{{ url_for('editPlaybook')}}' target='_blank'>");//adds href for the playbook 
+		var $linkForVarfile =$("<a class='redirect' id='var' href='{{ url_for('editVar')}}'  target='_blank'>");// this adds the href for the variable files link
+		var $popbtnlink =$("<button class='open'>Tasks</button>");
+		var $poptxtlink =$("<button type='button' onClick='(function(){e.preventDefault();});'class='btn btn-info' data-toggle='modal' data-target='#pathPop'>Add Image Path</button>");
+		var $tr = $("<tr>");//create a new row
+		var $playbook = $("<td>");//add to the playbook column
+		var $meta = $("<td>");//add to the meta column
+		var $testbed =$("<td>");
+		var $hostfile = $("<td>");//add to the hostfile column
+		var $varfile = $("<td>");//add to the vars column
+		var $masterplaybook = $("<td>");
+		var $popbtn= $("<td>");
+		var $remove= $("<td>");
+		$playbook.append($linkForPlaybook.append(jsonVal.playbook)); //attach the link and the new column 
+		if (jsonVal.playbook == "img_install")
+		{
+		$popbtn.append($poptxtlink);
+		}
+		else 
+		{ 
+		$popbtn.append($popbtnlink); 
+		}
+		$meta.append(jsonVal.meta);
+		$testbed.append((jsonVal.meta));
+		$varfile.append($linkForVarfile.append(jsonVal.varfile));
+		$remove.append($removeButton);
+		$tr.append($playbook);
+		$tr.append($popbtn);
+		//$tr.append($meta);
+		$tr.append($testbed);
+		$tr.append($varfile);
+		$tr.append($remove);
+		dic[jsonVal.playbook]=jsonVal["TaskTags"]
+		arr.push(dic);
+		var firstColumnData = []; //Storing Playbook names in list
+		$("#tableBody tr").each(function(){
+		firstColumnData.push($(this).find("td:first").text());
+		});
+		if ($.inArray(value_jsfields,firstColumnData)>-1){
+		console.log("already exist");
+		}
+		else {
+		$('#tableBody').append($tr);
+		firstColumnData.push($($tr).find("td:first").text());
+		}
+
+		document.getElementById('list_selected').value=firstColumnData;  //r.join(",");   
+		console.log("firstcolumndata is"+firstColumnData);
+		console.log(document.getElementById('list_selected').value);
+		}
+
+		$('a.redirectPlaybook').click(function (event) {
+		var value =$(this).closest('tr').find('td:first').text();
+		console.log("****the value is******", value);
+		newhref="/editPlaybook/"+value
+		console.log("new href is",newhref);
+		$(this).attr('href', newhref);
+		console.log($(this).attr('href'))
+		console.log($(this).text())  
+		});
+
+		$('a.redirect').click(function (event) {
+		var value =$(this).closest('tr').find('td:first').text();
+		console.log("the value is", value);
+		newhref="/editVar/"+value
+		console.log("new href is",newhref);
+		$(this).attr('href', newhref);
+		console.log($(this).attr('href'))
+		console.log($(this).text())
+		});
+
+		//This block of code handles the button to delete a row
+		$('#tableBody').on('click', 'input[type="image"]', function(e){
+		$(this).closest('tr').remove()
+		firstColumnData =[];
+		$("#tableBody tr").each(function(){
+		firstColumnData.push($(this).find("td:first").text());
+		});
+		document.getElementById('list_selected').value =firstColumnData;  //r.join(",");   
+		console.log("firstcolumndata is"+firstColumnData);
+		console.log(document.getElementById('list_selected').value);
+		})
+		var diff = $(firstColumnData).not(r).get();
+		console.log("the difference is ", diff);
+
+		if (diff.length != 0) {
+		console.log("diff exists", diff[0]);
+		//$('#tableBody td:contains(diff[0])').parents("tr").remove();
+		$("#tableBody tr td:contains('" + diff[0]  + "')").each(function() {
+		if ($(this).text() == diff[0]) {
+		$(this).parent().remove();
+		}  
+		});
+		firstColumnData =[];
+		$("#tableBody tr").each(function(){
+		firstColumnData.push($(this).find("td:first").text());
+		});
+		document.getElementById('list_selected').value =firstColumnData;  //r.join(",");   
+		console.log("firstcolumndata is"+firstColumnData);
+		}
+
+		//PopUp Window
+		$(".open").click(function (){
+		console.log("inside open");
+		td_first_popup =$(this).closest('tr').find('td:first').text();
+		console.log("-----the td-first open-----");
+		console.log("the value is", td_first_popup);
+		console.log("the list is --",  arr)
+		$.each(arr,function(index,value){ 
+		$.each(value, function(index2, value2) {
+		if ($.trim(td_first_popup)  == $.trim(index2)){
+		console.log("the key is:",index2 + " :the value is: " + value2);
+		var array = value2        
+		console.log("task_Tags array",array);
+		var data_array = array.split(',');
+		console.log(data_array);
+		console.log("the data length is:  "+data_array.length);
+		var list2 = [];
+		for(i=0; i<(data_array.length-1); i++){
+		list2.push("<li class='closeList' style='list-style:none;'><input class='all' id='check'type='checkbox' name='chklist'>"+data_array[i]+"</input></li>");
+		}
+		console.log("the list2 is", list2);
+		//$("#pop-inner>ul").replaceWith(list2);
+		//$(".closeList").empty();
+		$('#poplist').html(list2); //fill the pop up list
+
+		$("#checkAll").click(function() {
+		$(".all").prop("checked", $("#checkAll").prop("checked"))
+		})
+		}
+		else{
+		console.log("not this row",index2);
+		}
+
+		}); //each for loop
+		}); //each for loop
+		//   var array = jsonVal["TaskTags"] //Task tags are populated here
+		$(".pop-outer").fadeIn("fast");
+		$(".close").click(function (){
+		$(".pop-outer").fadeOut("fast");
+		});
+
+		});
+		},
+		error: function(error) {
+		console.log(error);
+		}
+		});
+	}
+	else
+	{   
+	r=[]
+	value_jsfields= "NULL"
+	$("#tableBody tr").remove();   
+	firstColumnData =[];
+	$("#tableBody tr").each(function(){
+	firstColumnData.push($(this).find("td:first").text());
+	});
+	document.getElementById('list_selected').value =firstColumnData;     
+	console.log("firstcolumndata is"+firstColumnData);   
+	$("li.second").removeClass("active");
+	}
+	});
+
+	$(".imagebutton").click(function()
+	{
+	var image_path = document.getElementById('image_path').value;
+	console.log("the image path is", image_path)
+	console.log(image_path)
+	document.getElementById('imagePath').value =image_path;     
+	});
+
+	$("#s").submit(function(e) {
+	e.preventDefault();
+	$("#container").jstree(true).search($("#q").val());
+	});
+
+	$(".submitbutton").click(function() {
+
+	var val = [];  //TASK TAGS LIST SELECTED
+
+	$("[name='chklist']").each(function (index, data){
+
+	if (data.checked) {
+	val.push(data.nextSibling.textContent);
+	}
+	});
+
+	console.log("the td-first is ",td_first_popup);	   
+
+	document.getElementById('tags_selected').value = val;  
+	document.getElementById('td_first_popup').value= td_first_popup;	
+	$.ajax({ 
+
+	url: '/read_tags',
+	data: $('#new').serialize(),
+	type: 'POST',
+	success: function(response) {
+
+	console.log("the response is");
+	console.log(response);
+
+	},
+	error: function(error) {
+	console.log(error);
+	}
+	});
+
+	list2 = [];
+	$(".closeList").empty();
+	$(".pop-outer").fadeOut("slow");
+	});
+}); 
+
+function setPath() {
+	var image_path = document.getElementById('image_path');
+	console.log("the image path is", image_path)
+	console.log(image_path)
+	document.getElementById('imagePath').value =image_path;     
+}
+
+function validateForm() {
+	var firstColumnData = [];
+	$("#tableBody tr").each(function(){
+	firstColumnData.push($(this).find("td:first").text());
+	});
+	var isFormValid = true;
+	if (firstColumnData.length == 0){isFormValid = false;}
+	if (!isFormValid) alert("Please select atleast one playbook to move forward");
+	return isFormValid;
+}
+</script>
+
+<div class="container box">
+<!-- Steps status track -->
+<ul class="statusbar">
+<li class="first, active">Select Playbooks</li>
+<li class="second">View/Edit files</li>
+<li>Run Jenkins</li>
+</ul>
+
+<div class="row">
+	<div class="column" style="background-color:lightblue; min-height: 200px;">
+		<form id="s" class="formClass">
+			<input type="search" id="q" />
+			<button type="submit">Search</button>
+		</form>
+
+		<!-- Display list of modules and roles in tree format -->
+		<form>
+		<div class="container" id="container">
+		<label>Groups</label>
+		<ul class="file-tree">
+		{% for module,test in roles.items() %}
+		<li data-jstree='{"checkbox_disabled":true}' ><a href="#" >{{module}}</a>
+		<ul>
+		{% for key, value in test.items() %}    
+		<li><a href="#">{{key}}</a> 
+		</li>
+		{% endfor %}  
+		</ul>
+		</li>
+		{% endfor %}
+		</ul>
+	</div>
+</div>
+</form>
+
+<br>
+
+<!-- Table columns -->
+<div class="column2">
+<table id="MasterTree">
+<thead>
+<tr>
+	<th  data-toggle="tooltip" title="This playbook is common to all other playbooks"><b> Master Playbook </b></th>
+	<th  data-toggle="tooltip" title="Click to edit/view hostfiles"><b> Host File </b></th>
+	<th  data-toggle="tooltip" title="Click to edit/view common group variable files"><b> Group Variable file</b></th>
+	<th  data-toggle="tooltip" title="Click to edit/view common group variable files"><b> Host Variable file</b></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+	<td><a href='/editSite' target='_blank' >site.yml</a></td>
+	<td><a href='/editHost'  target='_blank' >hosts</a></td>
+	<td><a href='/editGrpVars'  target='_blank'>Common Vars file</a></td>
+	<td><a href='/editHostVars'  target='_blank'>Host Vars file</a></td>
+</tr>
+</tbody>
+</table>
+
+<table id="treedisp">
+<thead>
+  <tr>
+    <th data-toggle="tooltip" title="Click to edit playbook"><b> Playbook </b></th>
+    <th data-toggle="tooltip" title="Click to view test cases"><b></b></th>
+  <!--  <th><b> Test Type </b></th>-->
+    <th  data-toggle="tooltip" title="Testbed required"><b> Test Bed</b></th>
+    <th  data-toggle="tooltip" title="Click to view all variable files"><b> Variable file</b></th>
+    <th  data-toggle="tooltip" title="Click to delete row"><b> Delete </b></th>
+   <!-- <th><b> Last Build Update</b></th> -->
+  </tr>
+</thead>
+<tbody id="tableBody">
+</tbody>
+</table>
+<br>
+<br>
+<form id="new" onsubmit="return validateForm();" action="{{ url_for('GetStarted_Ansible_Jenkins_Job')}}" method="post" target="_blank" >
+<div class="buttonSubmit">
+	<input type="hidden" name="jsfields" id="jsfields" value="" />
+	<input type="hidden" name="list_selected" id="list_selected" value="" />
+	<input type="hidden" name="td_first_popup" id="td_first_popup" value="" />
+	<input type="hidden" name="tags_selected" id="tags_selected" value="" />
+	<input type="hidden" name="imagePath" id="imagePath" value="" />
+	<label><b>EMAIL to receive test results:</b></label><input type=" text" placeholder="example@email.com" name="email" size="70" /><br>
+	<b><input class="Submit"type="submit"   value="RUN JENKINS"  data-toggle="tooltip" title="Submit to run Jenkins Job"></b>
+</div>
+</form>
+</div>
+</div>
+
+<!-- Pop up box for TASKS -->
+<div style="display: none;" class="pop-outer">
+<div class="pop-inner" id="pop-inner">
+  <button class="close">X</button>
+  <h3 style="float:center">
+<b>TASK_TAGS
+</b></h3>
+<li style='list-style:none;margin-top:5px;'><input class='all'  id='checkAll' type='checkbox' name='check'><b>SELECT ALL</b></input></li>
+<br>
+<ul id="poplist"></ul>
+<button class="submitbutton" type="submit" data-toggle="tooltip" title="Click to submit tasks to run">
+<b>SUBMIT</b>
+</button>
+</div>
+</div>
+
+<!-- Pop up box for Image path -->
+<div class="container">
+<div class="modal fade" id="pathPop" role="dialog">
+<div class="modal-dialog">   
+<!--content-->
+<div class="modal-content">
+    <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title">Add image path to upload on hosts</h4>
+    </div>
+    <div class="modal-body">
+        <label><b>Image Path: </b></label><input type=" text" placeholder=".bin file" name="image_path" size="70" id="image_path"/><br>
+    </div>
+    <div class="modal-footer">
+        <button class="imagebutton" type="submit" class="btn btn-default" data-dismiss="modal">Submit</button>
+    </div>
+</div>      
+</div>
+</div>
+</div>
+
+</body>
+</html>
+
+{% endblock %}
+
