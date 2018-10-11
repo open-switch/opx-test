@@ -1,5 +1,38 @@
-## How to run Playbooks
+## opx-test-infra
+The opx-test-infra app is built to make it easy to run test suites. On GUI you can select set of tests to run (sanity or full or individual playbooks), update and modify test suite files and run Jenkins. The GUI automatically creates and runs Jenkins jobs and emails the result.
 
+Test Infrastructure mainly comprises of Ansible Playbooks (to define test cases), GUI (a flask based app) and Jenkins (to run ansible jobs) 
+
+![image](https://user-images.githubusercontent.com/14809064/46828984-56f8ef80-cd51-11e8-9918-9c2aecc7c2b9.png)
+
+## How to set up the enviroment for opx-test-infra 
+[setup.sh](./setup.sh) script: Is used to setup the enviroment required by opx-test-infra. The script create a new user jenkins, install Jenkins, install required Jenkins plugins, update jenkins file to skip inital setup, start jenkins service, install Ansible, clone the opx-test ansible playbooks, install Flask and run the GUI on port 80. 
+Clone the script and run:
+```
+sudo ./setup.sh
+```
+To access the opx-test-infra GUI, on your machine go to home/jenkins/jenkins/Unified-Test-Application folder and run:
+```
+python ut-app.py
+```
+View the GUI:
+```
+http://127.0.0.1 or http://mgmt-ip
+```
+To learn more about the opx-test-infra GUI refer: [README.md](./jenkins/Unified-Test-Application/README.md)
+
+To access Jenkins GUI:
+Ensure jenkins service is running:
+```
+service jenkins status
+```
+View the Jenkins GUI:
+```
+http://127.0.0.1:8080 or http://mgmt-ip:8080
+```
+Login in to jenkins using admin/admin
+
+## How to manually run Playbooks without using GUI
 Playbooks are located in playbook folder. By default, ansible selects the hosts file path from ansible.cfg file located in /etc/ansible folder. Change the hosts file path in ansible.cfg file to locate your hosts. Sample hosts file is displayed below. 
 
 **Note**: *Image installation only works on hardware switches and not VM and VM has very limited functionality on L2*
@@ -49,3 +82,6 @@ ansible_console: '<consoleIP>'
 console_port:  '<consolePort>'
 ansible_host_gateway: '<MgmtGateway>'
 ```
+
+
+(c) 2018 Dell Inc. or its subsidiaries. All Rights Reserved.
