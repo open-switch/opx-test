@@ -72,6 +72,7 @@ sudo mv /tmp/opx-test/jenkins /home/jenkins/
 
 echo "####INSTALLING ANSIBLE####"
 sudo apt-add-repository ppa:ansible/ansible -y
+sudo apt-get update
 sudo apt-get -y install ansible
 sudo mv /tmp/opx-test/* /etc/ansible/
 
