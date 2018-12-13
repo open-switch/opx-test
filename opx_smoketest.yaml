@@ -510,19 +510,19 @@
       debug:
         msg: "{{result_getaptlistcmd.stdout_lines}}"
 
-    - block:
-      - name: SEND - opx-show-env
-        command: /usr/bin/opx-show-env
-        become: true
-        register: result_getenv
-        changed_when: False
-      - name: INFO - List of all env like power supply, fans status
-        debug:
-          msg: "{{result_getenv.stdout_lines}}"
-      - name: VERIFY - Show env command is working
-        assert:
-          that: "'Temperature sensors' in result_getenv.stdout"
-          msg:  "Error when executing command."
+#    - block:
+#      - name: SEND - opx-show-env
+#        command: /usr/bin/opx-show-env
+#        become: true
+#        register: result_getenv
+#        changed_when: False
+#      - name: INFO - List of all env like power supply, fans status
+#        debug:
+#          msg: "{{result_getenv.stdout_lines}}"
+#      - name: VERIFY - Show env command is working
+#        assert:
+#          that: "'Temperature sensors' in result_getenv.stdout"
+#          msg:  "Error when executing command."
 
 
     - block:
