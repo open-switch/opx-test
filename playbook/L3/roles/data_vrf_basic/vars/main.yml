@@ -1,0 +1,10 @@
+---
+
+# vars file for data_vrf_basic
+
+vrf_name: blue
+ip_address1 : "2.2.2.1"
+subnetmask1: 24
+ip_address2 : "2.2.2.2"
+subnetmask2: 24
+vrf_network_prefix: "3.3.3.0/24"

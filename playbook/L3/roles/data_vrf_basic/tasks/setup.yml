@@ -1,0 +1,24 @@
+---
+
+- block:
+  - name: Bring up the ports on DUT and TR
+    command: bash -c "ifconfig {{vrf_port1}} up"
+    changed_when: false
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: GET - The port status
+    command: bash -c "ifconfig {{vrf_port1}}"
+    changed_when: false
+    register: port_details
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: stdout the command output
+    debug:
+      msg: "{{port_details.stdout}}"
+  - name: VERIFY - IF port is admin UP
+    assert: 
+      that: "'UP' in port_details.stdout"
+      msg: Port is not admin UP
+  - name: VERIFY - IF port is oper up
+    assert:
+      that: "'RUNNING' in port_details.stdout"
+      msg: Port is not oper up
+    
