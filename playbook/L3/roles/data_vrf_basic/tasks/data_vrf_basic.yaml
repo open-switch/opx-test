@@ -1,0 +1,317 @@
+---
+
+- block:
+  - name: TC1 - Configure VRF
+    command: bash -c "{{vrf_config_cmd}} --create --vrf {{vrf_name}}"
+    changed_when: false
+    register: config_vrf
+  - name: stdout the command output
+    debug:
+      msg: "{{config_vrf.stdout}}" 
+  - name: Verify if the configuration is successful
+    assert:
+      that: "'Successful' in config_vrf.stdout"
+      msg: "VRF configuration failed"
+  - name: GET - VRF name from namespace
+    command: ip netns
+    changed_when: false
+    register: ipnetns_configvrf
+  - name: stdout the command output
+    debug:
+      msg: "{{ipnetns_configvrf.stdout}}"
+  - name: Verify the configured VRF in namespace
+    assert:
+      that: "'{{vrf_name}}' in ipnetns_configvrf.stdout"
+      msg: VRF not present in namespace
+  tags: ['verify_vrf_configuration','full','sanity']
+  rescue:
+  - name: TC1 - Debug commands for the failed test case 
+    command: bash -c "{{vrf_config_cmd}} --show; journalctl -b"
+    register: debug_TC1
+  - name: TC1 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC1_configure_VRF_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC1_configure_VRF_{{inventory_hostname}}
+      dest: /tmp/TC1_configure_VRF_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+
+- block:
+  - name: TC2 - Bring up the port that needs to be added to the VRF
+    import_tasks: setup.yml
+    #command: bash -c "ifconfig {{vrf_port1}} up"
+    #changed_when: false
+    #when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Add port to the configured VRF
+    command: bash -c "{{vrf_config_cmd}} --addport --vrf {{vrf_name}} --port {{vrf_port1}}"
+    changed_when: false
+    register: vrf_config_portadd
+  - name: stdout the command output
+    debug:
+      msg: "{{vrf_config_portadd.stdout}}"
+  - name: Verify if the configuration is successful
+    assert:
+      that: "'Successful' in vrf_config_portadd.stdout"
+      msg: "Adding port to the VRF failed"
+  - name: GET - list of ports in vrf namespace
+    command: bash -c "ip netns exec {{vrf_name}} ip link show"
+    changed_when: false
+    register: vrfport_namespace
+  - name: stdout the command output
+    debug:
+      msg: "{{vrfport_namespace.stdout}}"
+  - name: Verify if the configured port is present in the namespace
+    assert:
+      that: "'v-{{vrf_port1}}' in vrfport_namespace.stdout"
+      msg: Port not added to the VRF
+  tags: ['verify_adding_port_to_vrf','full','sanity']
+  rescue:
+  - name: TC2 - Debug commands for the failed test case 
+    command: bash -c "ifconfig -a; ip route show; {{vrf_config_cmd}} --show; ip netns exec {{vrf_name}} ip link show; journalctl -b"
+    register: debug_TC2
+  - name: TC2 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC2_VRF_add_port_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC2_VRF_add_port_{{inventory_hostname}}
+      dest: /tmp/TC2_VRF_add_port_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+
+- block:
+  - name: TC3 - Configure IP address on the virtual interfaces on the DUT
+    command: bash -c "ip netns exec {{vrf_name}} ip addr add {{ip_address1}}/{{subnetmask1}} dev v-{{vrf_port1}}"
+    changed_when: false
+    when: inventory_hostname == "DUT"
+  - name: GET - The IP address of the VRF port on the DUT
+    command: bash -c "ip netns exec {{vrf_name}} ifconfig v-{{vrf_port1}}"
+    changed_when: false
+    register: ip_config_dut
+    when: inventory_hostname == "DUT"
+  - name: stdout the command output
+    debug:
+      msg: "{{ip_config_dut.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: VERIFY - ip address configuraion
+    assert:
+      that: "'{{ip_address1}}' in ip_config_dut.stdout"
+      msg: "IP address configuration on the DUT failed"
+    when: inventory_hostname == "DUT"
+  - name: Configure IP address on the virtual interfaces on the TR
+    command: bash -c "ip netns exec {{vrf_name}} ip addr add {{ip_address2}}/{{subnetmask2}} dev v-{{vrf_port1}}"
+    changed_when: false
+    when: inventory_hostname == "TR"
+  - name: Bring up the physical interfaces on both DUT and TR #this step has to be part of setup.yml
+    import_tasks: setup.yml
+    #command: bash -c "ifconfig {{vrf_port1}} up"
+    #changed_when: false
+    #when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: GET - The IP address of the VRF port on the DUT
+    command: bash -c "ip netns exec {{vrf_name}} ifconfig v-{{vrf_port1}}"
+    changed_when: false
+    register: ip_config_tr
+    when: inventory_hostname == "TR"
+  - name: stdout the command output
+    debug:
+      msg: "{{ip_config_tr.stdout}}"
+    when: inventory_hostname == "TR"
+  - name: VERIFY - ip address configuraion
+    assert:
+      that: "'{{ip_address2}}' in ip_config_tr.stdout"
+      msg: "IP address configuration on the TR failed"
+    when: inventory_hostname == "TR"
+  rescue:
+  - name: TC3 - Debug commands for the failed test case
+    command: bash -c "ifconfig -a; ip route show; {{vrf_config_cmd}} --show; ip netns exec {{vrf_name}} ip link show; journalctl -b"
+    register: debug_TC3
+  - name: TC3 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC3_VRF_add_ipaddress_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC3_VRF_add_ipaddress_{{inventory_hostname}}
+      dest: /tmp/TC3_VRF_add_ipaddress_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+
+- block:
+  - name: TC4 - Configure the static route on DUT
+    command: bash -c "ip netns exec {{vrf_name}} ip route add {{vrf_network_prefix}} via {{ip_address2}}"
+    changed_when: false
+    when: inventory_hostname == "DUT"
+  - name: GET - VRF route entries 
+    command: "ip netns exec {{vrf_name}} ip route show"
+    register: dut_vrf_route_table
+    changed_when: false
+    when: inventory_hostname == "DUT"
+  - name: GET - Default route entries
+    command: "ip route show"
+    register: dut_route_table
+    changed_when: false
+    when: inventory_hostname == "DUT"
+  - name: stdout the command output
+    debug:
+      msg: "{{dut_route_table.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: stdout the command output
+    debug:
+      msg: "{{dut_vrf_route_table.stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: VERIFY - Network prefix present in the VRF route table
+    assert:
+      that: "'{{vrf_network_prefix}}' in dut_vrf_route_table.stdout"
+      msg: Configured route entry is not present in the VRF route table
+    when: inventory_hostname == "DUT"
+  - name: VERIFY - Network prefix is not present in the default route table
+    assert:
+      that: "'{{vrf_network_prefix}}' not in dut_route_table.stdout"
+      msg: Configured route entry  present in the default route table
+    when: inventory_hostname == "DUT"
+  rescue:
+  - name: TC4 - Debug commands for the failed test case
+    command: bash -c "ifconfig -a; ip route show; {{vrf_config_cmd}} --show; ip netns exec {{vrf_name}} ip link show; ip netns exec {{vrf_name}} ip route show; journalctl -b"
+    register: debug_TC
+  - name: TC4 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC4_VRF_add_route_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC4_VRF_add_route_{{inventory_hostname}}
+      dest: /tmp/TC4_VRF_add_route_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+
+- block:
+  - name: TC5 - Remove port from the configured VRF
+    command: bash -c "{{vrf_config_cmd}} --removeport --vrf {{vrf_name}} --port {{vrf_port1}}"
+    changed_when: false
+    register: vrf_config_portremove
+  - name: stdout the command output
+    debug:
+      msg: "{{vrf_config_portremove.stdout}}"
+  - name: Verify if the configuration is successful
+    assert:
+      that: "'Successful' in vrf_config_portremove.stdout"
+      msg: "Removing port from the VRF failed"
+  - name: GET - list of ports in vrf namespace
+    command: bash -c "ip netns exec {{vrf_name}} ip link show"
+    changed_when: false
+    register: vrfportrem_namespace
+  - name: stdout the command output
+    debug:
+      msg: "{{vrfportrem_namespace.stdout}}"
+  - name: Verify if the configured port is present in the namespace
+    assert:
+      that: "'v-{{vrf_port1}}' not in vrfportrem_namespace.stdout"
+      msg: Port not removed from the VRF
+  tags: ['verify_removing_port_from_vrf','full','sanity']
+  rescue:
+  - name: TC5 - Debug commands for the failed test case
+    command: bash -c "ifconfig -a; ip route show; {{vrf_config_cmd}} --show; ip netns exec {{vrf_name}} ip link show; journalctl -b"
+    register: debug_TC5
+  - name: TC5 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC5_VRF_remove_port_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC5_VRF_remove_port_{{inventory_hostname}}
+      dest: /tmp/TC5_VRF_remove_port_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC5 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+
+
+- block:
+  - name: TC6 - Delete VRF
+    command: bash -c "{{vrf_config_cmd}} --delete --vrf {{vrf_name}}"
+    changed_when: false
+    register: delete_vrf
+  - name: stdout the command output
+    debug:
+      msg: "{{delete_vrf.stdout}}"
+  - name: Verify if the configuration is successful
+    assert:
+      that: "'Successful' in delete_vrf.stdout"
+      msg: "VRF removal failed"
+  - name: GET - VRF name from namespace
+    command: ip netns
+    changed_when: false
+    register: ipnetns_removevrf
+  - name: stdout the command output
+    debug:
+      msg: "{{ipnetns_removevrf.stdout}}"
+  - name: Verify the configured VRF in namespace
+    assert:
+      that: "'{{vrf_name}}' not in ipnetns_removevrf.stdout"
+      msg: VRF present in namespace
+  tags: ['verify_vrf_unconfiguration','full','sanity']
+  rescue:
+  - name: TC6 - Debug commands for the failed test case
+    command: bash -c "{{vrf_config_cmd}} --show; journalctl -b"
+    register: debug_TC6
+  - name: TC6 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC6_unconfigure_VRF_{{inventory_hostname}}"
+    register: copy_log
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC6 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC6_unconfigure_VRF_{{inventory_hostname}}
+      dest: /tmp/TC6_unconfigure_VRF_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC6 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+
