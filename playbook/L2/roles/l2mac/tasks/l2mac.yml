@@ -11,18 +11,18 @@
     register: configure_server
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
   - name: TC1 - Create vlan {{vlanid}} tagged on DUT and TR
-    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}},{{test_int1}},{{test_int2}} -t; ip link set dev br{{vlanid}} up; brctl stp br{{vlanid}} on"
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data --taggedports {{server_int}},{{test_int1}},{{test_int2}}; ip link set dev br{{vlanid}} up; brctl stp br{{vlanid}} on"
     register: config_vlan
     changed_when: false
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC1 - STDOUT the output from the cps_config_vlan command
+  - name: TC1 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{config_vlan.stdout_lines}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - Verify the resulted output is success or failure
     assert:
-      that: "'Success' in config_vlan.stdout"
+      that: "config_vlan.rc == 0"
       msg: "Vlan configuration through CPS failed"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - STDOUT the ip link show command for br{{vlanid}} for DUT and TR
@@ -159,8 +159,13 @@
     fail:
      msg: One of the task in the block failed
   always:
+  - name: TC1 - Delete member ports from the VLAN
+    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}},{{test_int1}},{{test_int2}}"
+    register: clean_up_bridge_member
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - Clean up the bridge configurations on DUT and TR
-    command: bash -c "cps_config_vlan.py --del --name br100"
+    command: bash -c "opx-config-vlan delete --id {{vlanid}}"
     register: clean_up_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - Check br{{vlanid}} exists on DUT and TR
@@ -215,18 +220,18 @@
     register: configure_server
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
   - name: TC2 - Create vlan {{vlanid}} tagged on DUT and TR
-    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}},{{test_int1}},{{test_int2}} -t; ip link set dev br{{vlanid}} up; brctl stp br{{vlanid}} on"
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data --taggedports {{server_int}},{{test_int1}},{{test_int2}}; ip link set dev br{{vlanid}} up; brctl stp br{{vlanid}} on"
     register: config_vlan
     changed_when: false
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC2 - STDOUT the output from the cps_config_vlan command
+  - name: TC2 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{config_vlan.stdout_lines}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC2 - Verify the resulted output is success or failure
     assert:
-      that: "'Success' in config_vlan.stdout"
+      that: "config_vlan.rc == 0"
       msg: "Vlan configuration through CPS failed"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC2 - STDOUT the ip link show command for br{{vlanid}} for DUT,TR and Servers
@@ -398,8 +403,13 @@
       that: "'success' in delete_mac_address_table_static.stdout"
       msg: "success not in the output"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Delete member ports from the VLAN
+    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}},{{test_int1}},{{test_int2}}"
+    register: clean_up_bridge_member
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC2 - Clean up the bridge configurations on DUT and TR
-    command: bash -c "cps_config_vlan.py --del --name br100"
+    command: bash -c "opx-config-vlan delete --id {{vlanid}}"
     register: clean_up_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC2 - Check br{{vlanid}} exists on DUT and TR
@@ -484,20 +494,21 @@
     register: configure_server
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
   - name: TC3 - Create vlan {{vlanid}} tagged on DUT and TR
-    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}} -t; brctl stp br{{vlanid}} on; ip link set dev br{{vlanid}} up"
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data --taggedports {{server_int}}; brctl stp br{{vlanid}} on; ip link set dev br{{vlanid}} up"
     register: config_vlan
     changed_when: false
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC3 - Verify the CPS configuration of br{{vlanid}} is success
     assert:
-      that: "'Success' in config_vlan.stdout_lines[0]"
+      that: "config_vlan.rc == 0"
+      msg: "Vlan configuration through CPS failed"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC3 - Issue the show command to check br{{vlanid}} exists
     command: bash -c "ip link show br{{vlanid}}"
     register: show_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC3 - STDOUT the output from the cps_config_vlan command
+  - name: TC3 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{show_bridge.stdout_lines}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
@@ -734,8 +745,13 @@
     fail:
      msg: One of the task in the block failed
   always:
+  - name: TC3 - Delete member ports from the VLAN
+    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}}"
+    register: clean_up_bridge_member
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC3 - Clean up the bridge configurations on DUT and TR
-    command: bash -c "cps_config_vlan.py --del --name br100"
+    command: bash -c "opx-config-vlan delete --id {{vlanid}}"
     register: clean_up_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC3 - Check br{{vlanid}} exists on DUT and TR
@@ -768,12 +784,12 @@
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC3 - Delete the {{bond_interface}}
-    command: bash -c "cps_config_lag.py --delete --lname {{bond_interface}}"
+    command: bash -c "opx-config-lag delete --name {{bond_interface}}"
     register: delete_lag
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC3 - Verify the lag gets deleted
     assert:
-      that: "'Success' in delete_lag.stdout"
+      that: "delete_lag.rc == 0"
       msg: "Failed to delete LAG"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
 
@@ -785,7 +801,7 @@
   - name: TC4- Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
     import_tasks: setup.yml
   - name: TC4 - Configure Static PortChannel on DUT and TR
-    command: bash -c "cps_config_lag.py --create --lname {{bond_interface}}; ip link set dev {{bond_interface}} up"
+    command: bash -c "opx-config-lag create --name {{bond_interface}}; ip link set dev {{bond_interface}} up"
     register: config_static_portchannel
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC4 - STDOUT the output of portchannel
@@ -801,7 +817,7 @@
       that: "'{{bond_interface}}' in show_static_portchannel.stdout"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC4 - Add member ports {{test_int1}} and {{test_int2}} to the {{bond_interface}}
-    command: bash -c "cps_config_lag.py --add --lname {{bond_interface}} --port {{test_int1}},{{test_int2}}"
+    command: bash -c "opx-config-lag add --name {{bond_interface}} --unblockedports {{test_int1}},{{test_int2}}"
     register: config_member_ports_portchannel
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC4 - Bring up the member ports {{test_int1}},{{test_int2}} and {{bond_interface}}
@@ -833,20 +849,21 @@
     register: configure_server
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
   - name: TC4 - Create vlan {{vlanid}} tagged on DUT and TR
-    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}} -t; brctl stp br{{vlanid}} on; ip link set dev br{{vlanid}} up"
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data --taggedports {{server_int}}; brctl stp br{{vlanid}} on; ip link set dev br{{vlanid}} up"
     register: config_vlan
     changed_when: false
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC4 - Verify the CPS configuration of br{{vlanid}} is success
     assert:
-      that: "'Success' in config_vlan.stdout_lines[0]"
+      that: "config_vlan.rc == 0"
+      msg: "Vlan configuration through CPS failed"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC4 - Issue the show command to check br{{vlanid}} exists
     command: bash -c "ip link show br{{vlanid}}"
     register: show_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - STDOUT the output from the cps_config_vlan command
+  - name: TC4 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{show_bridge.stdout_lines}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
@@ -856,7 +873,7 @@
       msg: "Vlan configuration failed"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC4 - Add static port-channel {{bond_interface}} and {{test_int3}} to br{{vlanid}}
-    command: bash -c "cps_config_vlan.py --addport --name br{{vlanid}} --port {{bond_interface}} -t; cps_config_vlan.py --addport --name br{{vlanid}} --port {{test_int3}} -t; ip link set dev {{test_int3}} up"
+    command: bash -c "opx-config-vlan add --id {{vlanid}} --taggedports {{bond_interface}},{{test_int3}}; ip link set dev {{test_int3}} up"
     register: add_portchannel_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC4 - Issue the show command for br{{vlanid}}
@@ -1091,20 +1108,38 @@
     fail:
      msg: One of the task in the block failed
   always:
-  - name: TC4 - Clean up the configurations {{bond_interface}} and br{{vlanid}} on DUT and TR
-    command: bash -c "cps_config_vlan.py --del --name br{{vlanid}}; cps_config_lag.py --delete --lname {{bond_interface}}"
-    register: clean_up_bond_bridge
+  - name: TC4 - Delete member ports from the VLAN
+    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}},{{bond_interface}},{{test_int3}}"
+    register: clean_up_bridge_member
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Clean up the configurations : br{{vlanid}} on DUT and TR
+    command: bash -c "opx-config-vlan delete --id {{vlanid}}"
+    register: clean_up_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC4 - STDOUT the clean up configurations output
     debug:
-      msg: "{{clean_up_bond_bridge.stdout_lines}}"
+      msg: "{{clean_up_bridge.stdout_lines}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Verify {{bond_interface}} and br{{vlanid}} gets deleted
+  - name: TC4 - Verify br{{vlanid}} gets deleted
     assert:
       that:
-        - "'Success' in clean_up_bond_bridge.stdout_lines[0]"
-        - "'Success' in clean_up_bond_bridge.stdout_lines[1]"
-      msg: "Failed to delete {{bond_interface}} and br{{vlanid}}"
+        - "clean_up_bridge.rc == 0"
+      msg: "Failed to delete br{{vlanid}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Clean up the configurations : {{bond_interface}} on DUT and TR
+    command: bash -c "opx-config-lag delete --name {{bond_interface}}"
+    register: clean_up_bond
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - STDOUT the clean up configurations output
+    debug:
+      msg: "{{clean_up_bond.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC4 - Verify br{{vlanid}} gets deleted
+    assert:
+      that:
+        - "clean_up_bond.rc == 0"
+      msg: "Failed to delete {{bond_interface}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
 
 
@@ -1163,20 +1198,21 @@
     register: configure_server
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
   - name: TC5 - Create vlan {{vlanid}} tagged on DUT and TR
-    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}} -t; brctl stp br{{vlanid}} on; ip link set dev br{{vlanid}} up"
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data --taggedports {{server_int}}; brctl stp br{{vlanid}} on; ip link set dev br{{vlanid}} up"
     register: config_vlan
     changed_when: false
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC5 - Verify the CPS configuration of br{{vlanid}} is success
     assert:
-      that: "'Success' in config_vlan.stdout_lines[0]"
+      that: "config_vlan.rc == 0"
+      msg: "Vlan configuration through CPS failed"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC5 - Issue the show command to check br{{vlanid}} exists
     command: bash -c "ip link show br{{vlanid}}"
     register: show_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC5 - STDOUT the output from the cps_config_vlan command
+  - name: TC5 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{show_bridge.stdout_lines}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
@@ -1446,8 +1482,13 @@
     fail:
      msg: One of the task in the block failed
   always:
+  - name: TC5 - Delete member ports from the VLAN
+    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}}"
+    register: clean_up_bridge_member
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC5 - Clean up the bridge configurations on DUT and TR
-    command: bash -c "cps_config_vlan.py --del --name br100"
+    command: bash -c "opx-config-vlan delete --id {{vlanid}}"
     register: clean_up_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC5 - Check br{{vlanid}} exists on DUT and TR
@@ -1458,7 +1499,7 @@
   - name: TC5 - Verify the output of the command whether br{{vlanid}} exists
     assert:
       that: "'Device not found' in check_bridge_config.stderr"
-      msg: "br{{vlanid}} still present in the output"
+      msg: "br{{vlanid}} still present"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC5 - Clean up the bridge configurations on server
     command: bash -c "ifconfig br{{vlanid}} down; brctl delbr br{{vlanid}}"
@@ -1472,7 +1513,7 @@
   - name: TC5 - Verify the output of the command whether br{{vlanid}} exists
     assert:
       that: "'Device not found' in check_bridge_config_server.stderr"
-      msg: "br{{vlanid}} still present in the output"
+      msg: "br{{vlanid}} still present"
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
   - name: TC5 - Clean up the portchannel configurations
     command: bash -c "ip link show {{bond_interface}}"
@@ -1480,11 +1521,11 @@
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC5 - Delete the {{bond_interface}}
-    command: bash -c "cps_config_lag.py --delete --lname {{bond_interface}}"
+    command: bash -c "opx-config-lag delete --name {{bond_interface}}"
     register: delete_lag
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC5 - Verify the lag gets deleted
     assert:
-      that: "'Success' in delete_lag.stdout"
+      that: "delete_lag.rc == 0"
       msg: "Failed to delete LAG"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")

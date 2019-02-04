@@ -10,18 +10,18 @@
     register: configure_server
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
   - name: TC1 - Create vlan {{vlanid}} with tagged port {{server_int}} ,{{test_int1}}, {{test_int2}} on DUT and TR
-    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}},{{test_int1}},{{test_int2}} -t; ip link set dev br{{vlanid}} up; brctl stp br{{vlanid}} on"
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data --taggedports {{server_int}},{{test_int1}},{{test_int2}}; ip link set dev br{{vlanid}} up; brctl stp br{{vlanid}} on"
     register: config_vlan_tagged
     changed_when: false
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC1 - STDOUT the output from the cps_config_vlan command
+  - name: TC1 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{config_vlan_tagged.stdout_lines}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - Verify the resulted output is success or failure
     assert:
-      that: "'Success' in config_vlan_tagged.stdout"
+      that: "config_vlan_tagged.rc == 0"
       msg: "Vlan configuration through CPS failed"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - STDOUT the ip link show command for br{{vlanid}} for DUT,TR and Server
@@ -152,8 +152,12 @@
     fail:
      msg: One of the task in the block failed
   always:
+  - name: TC1 - Clean up the bridge members on DUT and TR
+    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}},{{test_int1}},{{test_int2}}"
+    register: clean_up_bridge_ports
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - Clean up the bridge configurations on DUT and TR
-    command: bash -c "cps_config_vlan.py --del --name br100"
+    command: bash -c "opx-config-vlan delete --id {{vlanid}}"
     register: clean_up_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - Check br{{vlanid}} exists on DUT and TR
@@ -164,7 +168,7 @@
   - name: TC1 - Verify the output of the command whether br{{vlanid}} exists
     assert:
       that: "'Device not found' in check_bridge_config.stderr"
-      msg: "br{{vlanid}} still present in the output"
+      msg: "br{{vlanid}} still present"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - Clean up the bridge configurations on server
     command: bash -c "ifconfig br{{vlanid}} down; brctl delbr br{{vlanid}}; ip link del {{server_link}}.{{vlanid}} "

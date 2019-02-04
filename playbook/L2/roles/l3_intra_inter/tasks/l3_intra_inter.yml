@@ -24,48 +24,48 @@
       msg: "IP Address is not programmed"
     when: inventory_hostname == "Server1"
   - name: TC1 - Create vlan {{vlanid}} with tagged port {{server_int}} ,{{test_int1}} on DUT 
-    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}},{{test_int1}} -t; ip link set dev br{{vlanid}} up"
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data --taggedports {{server_int}},{{test_int1}}; ip link set dev br{{vlanid}} up"
     register: config_vlan_tagged
     changed_when: false
     ignore_errors: yes
     when: inventory_hostname == "DUT"
-  - name: TC1 - STDOUT the output from the cps_config_vlan command
+  - name: TC1 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{config_vlan_tagged.stdout_lines}}"
     when: inventory_hostname == "DUT"
   - name: TC1 - Verify the resulted output is success or failure
     assert:
-      that: "'Success' in config_vlan_tagged.stdout"
+      that: "config_vlan_tagged.rc == 0"
       msg: "Vlan configuration through CPS failed"
     when: inventory_hostname == "DUT"
   - name: TC1 - Create vlan {{vlanid}} with tagged port {{test_int1}} on TR
-    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{test_int1}} -t ; ip link set dev br{{vlanid}} up"
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data --taggedports {{test_int1}}; ip link set dev br{{vlanid}} up"
     register: config_vlan_tagged
     changed_when: false
     ignore_errors: yes
     when: inventory_hostname == "TR"
-  - name: TC1 - STDOUT the output from the cps_config_vlan command
+  - name: TC1 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{config_vlan_tagged.stdout_lines}}"
     when: inventory_hostname == "TR"
   - name: TC1 - Verify the resulted output is success or failure
     assert:
-      that: "'Success' in config_vlan_tagged.stdout"
+      that: "config_vlan_tagged.rc == 0"
       msg: "Vlan configuration through CPS failed"
     when: inventory_hostname == "TR"
-  - name: TC1 - Create vlan {{vlanid}} with untagged port {{test_int2}} on DUT 
-    command: bash -c "cps_config_vlan.py  --addport --name  br{{vlanid}} --port {{test_int2}}; ip link set dev br{{vlanid}} up"
+  - name: TC1 - Add untagged port {{test_int2}} to the vlan {{vlanid}} on DUT 
+    command: bash -c "opx-config-vlan add --id {{vlanid}} --ports {{test_int2}}; ip link set dev br{{vlanid}} up"
     register: config_vlan_untagged
     changed_when: false
     ignore_errors: yes
     when: inventory_hostname == "DUT"
-  - name: TC1 - STDOUT the output from the cps_config_vlan command
+  - name: TC1 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{config_vlan_untagged.stdout_lines}}"
     when: inventory_hostname == "DUT"
   - name: TC1 - Verify the resulted output is success or failure
     assert:
-      that: "'Success' in config_vlan_untagged.stdout"
+      that: "config_vlan_untagged.rc == 0"
       msg: "Vlan configuration through CPS failed"
     when: inventory_hostname == "DUT"
   - name: TC1 - STDOUT the ip link show command for br{{vlanid}} for DUT,TR and Server
@@ -200,8 +200,18 @@
     fail:
      msg: One of the task in the block failed
   always:
+  - name: TC1 - Clean up the bridge members on DUT
+    command: bash -c "opx-config-vlan remove --id {{vlanid}} --ports {{test_int2}} --taggedports {{server_int}},{{test_int1}}"
+    register: clean_up_bridge_ports
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT")
+  - name: TC1 - Clean up the bridge members on TR
+    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{test_int1}}"
+    register: clean_up_bridge_ports
+    ignore_errors: yes
+    when: (inventory_hostname == "TR")
   - name: TC1 - Clean up the bridge configurations on DUT and TR
-    command: bash -c "cps_config_vlan.py --del --name br{{vlanid}}"
+    command: bash -c "opx-config-vlan delete --id {{vlanid}}"
     register: clean_up_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - Check br{{vlanid}} exists on DUT and TR
@@ -254,33 +264,33 @@
       msg: "IP Address is not programmed"
     when: inventory_hostname == "Server1"
   - name: TC2 - Create vlan {{vlanid}} with tagged port {{server_int}} on DUT
-    command: bash -c "cps_config_vlan.py  --add --id {{vlanid}} --vlantype 1 --port {{server_int}} -t; ip link set dev br{{vlanid}} up"
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data --taggedports {{server_int}}; ip link set dev br{{vlanid}} up"
     register: config_vlan_tagged
     changed_when: false
     ignore_errors: yes
     when: inventory_hostname == "DUT"
-  - name: TC2 - STDOUT the output from the cps_config_vlan command
+  - name: TC2 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{config_vlan_tagged.stdout_lines}}"
     when: inventory_hostname == "DUT"
   - name: TC2 - Verify the resulted output is success or failure
     assert:
-      that: "'Success' in config_vlan_tagged.stdout"
+      that: "config_vlan_tagged.rc == 0"
       msg: "Vlan configuration through CPS failed"
     when: inventory_hostname == "DUT"
   - name: TC2 - Create vlan {{interVLAN}} routing with tagged port {{test_int1}} on DUT and TR
-    command: bash -c "cps_config_vlan.py  --add --id {{interVLAN}} --vlantype 1 --port {{test_int1}} -t; ip link set dev br{{interVLAN}} up"
+    command: bash -c "opx-config-vlan create --id {{interVLAN}} --type data --taggedports {{test_int1}}; ip link set dev br{{interVLAN}} up"
     register: config_vlan_tagged
     changed_when: false
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC2 - STDOUT the output from the cps_config_vlan command
+  - name: TC2 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{config_vlan_tagged.stdout_lines}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC2 - Verify the resulted output is success or failure
     assert:
-      that: "'Success' in config_vlan_tagged.stdout"
+      that: "config_vlan_tagged.rc == 0"
       msg: "Vlan configuration through CPS failed"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC2 - STDOUT the ip link show command for br{{vlanid}} for DUT,TR and Server
@@ -474,8 +484,13 @@
     fail:
      msg: One of the task in the block failed
   always:
+  - name: TC2 - Clean up the bridge members on DUT
+    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}}"
+    register: clean_up_bridge_ports
+    ignore_errors: yes
+    when: inventory_hostname == "DUT"
   - name: TC2 - Clean up the bridge br{{vlanid}} configurations on DUT
-    command: bash -c "cps_config_vlan.py --del --name br{{vlanid}}"
+    command: bash -c "opx-config-vlan delete --id {{vlanid}}"
     register: clean_up_bridge
     when: inventory_hostname == "DUT"
   - name: TC2 - Check br{{vlanid}} exists on DUT
@@ -488,8 +503,13 @@
       that: "'Device not found' in check_bridge_config.stderr"
       msg: "br{{vlanid}} still present in the output"
     when: inventory_hostname == "DUT"
+  - name: TC2 - Clean up the bridge members on DUT and TR
+    command: bash -c "opx-config-vlan remove --id {{interVLAN}} --taggedports {{test_int1}}"
+    register: clean_up_bridge_ports
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC2 - Clean up the br{{interVLAN}} configurations on DUT and TR
-    command: bash -c "cps_config_vlan.py --del --name br{{interVLAN}}"
+    command: bash -c "opx-config-vlan delete --id {{interVLAN}}"
     register: clean_up_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC2 - Check br{{interVLAN}} exists on DUT and TR
