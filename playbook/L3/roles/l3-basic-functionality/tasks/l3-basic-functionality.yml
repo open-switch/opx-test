@@ -103,17 +103,21 @@
     shell: echo "*****Verify user can add modify and delete ipv4 address to a lag interface*****"
   - name: TC3- Setup (Bring the ports up on DUT and TR)
     import_tasks: setup.yml  
-  - name: TC3 - Create bond interface, Add memebers to LAG on DUT
-    command: bash -c "ip link add {{bond_interface}} type bond mode 1 miimon 100; ip link set dev {{bond_interface}} up; ip link set dev {{test_int1}} down; ip link set {{test_int1}} master {{bond_interface}}; ip link set dev {{test_int2}} down; ip link set {{test_int2}} master {{bond_interface}}"
+  - name: TC3 - Create bond interface, Add members to LAG on DUT
+    command: bash -c "opx-config-lag create --name {{bond_interface}} --unblockedports {{test_int1}},{{test_int2}}; ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; opx-config-lag --name {{bond_interface}} --enable"
     register: result
   - pause:
       seconds: 3
   - debug: 
       var: result
   - name: TC3 - Verify LAG interface state
-    command: bash -c "ip link show dev {{bond_interface}} | grep UP"
+    command: bash -c "opx-show-lag --name {{bond_interface}}"
     register: result
     failed_when: result.rc == 1
+  - name: TC3 - Check if LAG Oper stats is UP
+    assert:
+      that: "'Oper state:       up' in result.stdout"
+      msg: "Oper status of LAG {{bond_interface}} is down"
   - name: TC3 - Configure ipv4_address to a lag interface on DUT
     command: bash -c "ip addr add {{IPAddr1}}/{{prefixlen}} dev {{bond_interface}}" 
     register: result
@@ -169,7 +173,7 @@
   - debug:
       var: check_exist
   - name: TC3 - Bring the bond_interface down
-    command: bash -c "ip link set dev {{bond_interface}} down | ip addr flush dev {{bond_interface}}"
+    command: bash -c "opx-config-lag --name {{bond_interface}} --disable | ip addr flush dev {{bond_interface}}"
     when: check_exist.stat.exists
     ignore_errors: yes
   when: inventory_hostname == "DUT" 
@@ -188,7 +192,7 @@
   - debug:
       var: result
   - name: TC5 - Create bridge, Confgure vlan with tagged port 1 and 2 on DUT
-    command: bash -c "brctl addbr {{bridge}}; ip link set dev {{bridge}} up; ip link add link {{test_int1}} name {{test_int1}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{test_int1}}.{{vlanid}} up; ip link add link {{test_int2}} name {{test_int2}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{test_int2}}.{{vlanid}} up; brctl addif {{bridge}} {{test_int1}}.{{vlanid}}; brctl addif {{bridge}} {{test_int2}}.{{vlanid}}"
+    command: bash -c "opx-config-vlan create --id {{vlanid}}; ip link set dev {{bridge}} up; opx-config-vlan add --id {{vlanid}} --taggedports {{test_int1}}; ip link set dev {{test_int1}}.{{vlanid}} up; opx-config-vlan add --id {{vlanid}} --taggedports {{test_int2}}; ip link set dev {{test_int2}}.{{vlanid}} up;"
     register: result
   - debug:
       var: result
@@ -217,16 +221,20 @@
   when: inventory_hostname == "DUT" 
   always:
   - name: set bridge state down, remove menber to vlan, delete bridge
-    command: bash -c "ip link set dev {{bridge}} down; brctl delif {{bridge}} {{test_int1}}.{{vlanid}};  brctl delif {{bridge}} {{test_int2}}.{{vlanid}}; ip link set dev {{test_int1}}.{{vlanid}} down; ip link delete {{test_int1}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{test_int2}}.{{vlanid}} down; ip link delete  {{test_int2}}.{{vlanid}} type vlan id {{vlanid}}; brctl delbr {{bridge}}" 
+    command: bash -c "ip link set dev {{bridge}} down; opx-config-vlan remove --id {{vlanid}} --taggedports {{test_int1}},{{test_int2}}; opx-config-vlan delete --id {{vlanid}}" 
     register: result   
     ignore_errors: yes
   - debug:
       var: result
   - name: Verify bridge does not exist
-    command: bash -c "{{switchShell}} 'vlan show'"
+    command: bash -c "opx-show-vlan --id {{vlanid}}"
     register: result   
   - debug:
       var: result
+  - name: Check if the VLAN information exists
+    assert:
+      that: "'No VLAN information found' in result.stdout"
+      msg: "VLAN {{vlanid}} is still present"
   - command: bash -c "brctl show {{bridge}} | grep {{bridge}}"
     register: result
     ignore_errors: yes
@@ -486,7 +494,7 @@
       var: result
     when: inventory_hostname == "DUT"
   - name: TC9 - Debug Commands for TC1 for failure analysis 
-    command: bash -c "brctl show; ip addr show {{test_int1}}"      
+    command: bash -c "opx-show-vlan; brctl show; ip addr show {{test_int1}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   always:
   - name: TC9 - Check if bridge present 
