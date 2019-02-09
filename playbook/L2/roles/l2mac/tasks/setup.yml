@@ -34,12 +34,17 @@
     apt:
       name: bridge-utils
       update_cache: yes
+    ignore_errors: yes
+  - name: Cleanup the bridges on all the machines
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan delete --id {{vlanid}}"
+    register: del_bridge
+    ignore_errors: yes
   - name: Check the fanout port exists
     command: bash -c "ip link show {{server_int}}"
     register: fanout_int
     ignore_errors: yes
   - name: Fanout the ports connected to server
-    command: bash -c "{{fanoutcmd}} {{fanoutport}} {{splitport}} {{speed}}"
+    command: bash -c "{{fanoutcmd}} --port {{fanoutport}} --mode {{splitport}} --speed {{speed}}"
     register: fanout
     when: 
       - (inventory_hostname in groups['2host'][0]) or (inventory_hostname in groups['2host'][1])
@@ -63,6 +68,10 @@
     assert:
       that: "'state UP' in verify_status_server.stdout"
       msg: "Interface is not up on Server side"
+  - name: Cleanup the bridges on all the machines
+    command: bash -c "ip link set dev br{{vlanid}} down; brctl delbr br{{vlanid}}"
+    register: del_bridge
+    ignore_errors: yes
   when: (inventory_hostname in groups['2host'][2]) or (inventory_hostname in groups['2host'][3])
 
 
