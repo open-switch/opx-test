@@ -92,7 +92,7 @@
   - name: TC2 - Bring down the fanout interface on DUT
     command: bash -c "ip link set {{server_int}} down; ip addr flush dev {{server_int}}"
   - name: TC2 - Disable the port fanout configuraion (fanin the port)
-    command: bash -c "{{fanoutcmd}} {{server_int}} 1x1 {{speed}}"
+    command: bash -c "{{fanoutcmd}} --port {{server_int}} --mode 1x1 --speed {{speed}}"
     register: result
     ignore_errors: yes
   when: inventory_hostname == "DUT" 
@@ -587,10 +587,10 @@
   - debug:
       var: result
     when: inventory_hostname == "Server2"
-  - name: TC10 -  Show command to check static route present on Server2
-    command: bash -c "ip route | grep {{route0}}" 
-    register: result
-    when: inventory_hostname == "Server2"
+#  - name: TC10 -  Show command to check static route present on Server2
+#    command: bash -c "ip route | grep {{route0}}" 
+#    register: result
+#    when: inventory_hostname == "Server2"
   - name: TC10 - Verify static route present on Server2
     assert:
       that: "'{{route0}}' in result.stdout"
@@ -635,9 +635,14 @@
   always:
   #Start Cleanup
   - name: Unconfigure static route on DUT and bring down the interface
-    command: bash -c "ip route del {{route1}}/{{prefixlen}} scope global nexthop via {{IPAddr2}};ip link set {{test_int1}} down; ip addr flush dev {{test_int1}}"
+    #command: bash -c "ip route del {{route1}}/{{prefixlen}} scope global nexthop via {{IPAddr2}};ip link set {{test_int1}} down; ip addr flush dev {{test_int1}}"
+    command:  bash -c "opx-config-route delete --vrf_name default --dst {{route1}}/{{prefixlen}} --nh {{IPAddr2}}"
     when: inventory_hostname == "DUT"
+    register: result
     ignore_errors: yes
+  - debug:
+      var: result
+    when: inventory_hostname == "DUT"
   - name: Bring down interface TR
     command: bash -c "ip link set {{item}} down; ip addr flush dev {{item}}"
     with_items:
