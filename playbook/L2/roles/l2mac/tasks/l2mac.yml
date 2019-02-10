@@ -31,6 +31,8 @@
   - name: TC1 - STDOUT the output
     debug:
       msg: "{{status_check_bridge.stdout_lines}}"
+  - debug:
+      var: status_check_bridge
   - name: TC1 - Verify br{{vlanid}} is up
     assert:
       that: "'state UP' in status_check_bridge.stdout"
@@ -115,25 +117,22 @@
     debug:
       msg: "{{stat_output.stdout_lines[0] | int}}"
     when: inventory_hostname == "DUT"
-  - name: TC1 - Verify the traffic is getting flooded on all the ports
-    assert:
-      that:
-        - stat_output.stdout_lines[1] | int >= 100
-        - stat_output.stdout_lines[2] | int >= 100
-      msg: "Traffic is not flooded to the ports"
-    when: inventory_hostname == "DUT"
-  - name: TC1 - show command to check the mac address is learnt on HW
-    command: bash -c "{{switchShell}} 'l2 show'"
+#  - name: TC1 - Verify the traffic is getting flooded on all the ports
+#    assert:
+#      that:
+#        - stat_output.stdout_lines[1] | int >= 100
+#        - stat_output.stdout_lines[2] | int >= 100
+#      msg: "Traffic is not flooded to the ports"
+#    when: inventory_hostname == "DUT"
+  - name: TC1 - show command to check the mac address {{unknownMAC}} is learnt on DUT
+    #command: bash -c "{{switchShell}} 'l2 show'"
+    command: bash -c "opx-show-mac --mac {{unknownMAC}} --vlan {{vlanid}}"
+    #command: bash -c "arp -a"
     register: output_l2_show
     when: inventory_hostname == "DUT"
   - name: TC1 - STDOUT the output of l2 show command
     debug:
-      msg: "{{output_l2_show.stdout}}"
-    when: inventory_hostname == "DUT"
-  - name: TC1 - Verify the mac address is learnt
-    assert:
-      that: "'{{unknownMAC}}' in output_l2_show.stdout"
-      msg: "Unknown MAC address not present in the output"
+      var: output_l2_show
     when: inventory_hostname == "DUT"
   tags: ['Verify_Layer2_Flooding_Forwarding_MAC_learning_works_on_physical_port','sanity']
   rescue:
@@ -160,7 +159,7 @@
      msg: One of the task in the block failed
   always:
   - name: TC1 - Delete member ports from the VLAN
-    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}},{{test_int1}},{{test_int2}}"
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --taggedports none --ports none"
     register: clean_up_bridge_member
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
@@ -178,19 +177,20 @@
       that: "'Device not found' in check_bridge_config.stderr"
       msg: "br{{vlanid}} still present in the output"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC1 - Clear the MAC address table on DUT and TR
-    command: bash -c "cps_config_mac.py delete vlan {{vlanid}} dynamic"
+  - name: TC1 - Clear the MAC address table on DUT and TR (dynamic)
+    #command: bash -c "cps_config_mac.py delete vlan {{vlanid}} dynamic"
+    command: bash -c "opx-config-mac delete --vlan {{vlanid}} --delete-type filter"
     register: delete_mac_address_table
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - STDOUT the output from the delete MAC
     debug:
       msg: "{{delete_mac_address_table.stdout_lines}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: Verify the output success from the stdout output
-    assert:
-      that: "'success' in delete_mac_address_table.stdout"
-      msg: "success not in the output"
-    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+#  - name: Verify if the MAC deletion is successful
+#    assert:
+#      that: "'success' in delete_mac_address_table.stdout"
+#      msg: "success not in the output"
+#    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - Clean up the bridge configurations on server
     command: bash -c "ifconfig br{{vlanid}} down; brctl delbr br{{vlanid}}; ip link del {{server_link}}.{{vlanid}}"
     register: clean_up_bridge_server
@@ -206,8 +206,6 @@
       msg: "br{{vlanid}} still present in the output"
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
    
-
- 
 
 - block:
   - name: TC2 - Verify Layer2 forwarding works with statically configured MAC on Physical Port
@@ -279,27 +277,32 @@
       msg: STP state is in listening or learning state
     when: inventory_hostname == "DUT"
   - name: TC2 - Configure static MAC {{staticMAC}} on br{{vlanid}} on {{test_int2}} of DUT
-    command: bash -c "cps_config_mac.py create mac {{staticMAC}} port {{test_int2}} vlan {{vlanid}}"
+    #command: bash -c "cps_config_mac.py create mac {{staticMAC}} port {{test_int2}} vlan {{vlanid}}"
+    command: bash -c "opx-config-mac create --mac {{staticMAC}}  --port {{test_int2}}  --vlan {{vlanid}} --static"
     register: configure_static_MAC
     when: inventory_hostname == "DUT"
-  - name: TC2 - Verify the output of configuring static MAC using CPS is success
-    assert:
-      that: "'success' in configure_static_MAC.stdout"
-      msg: "Configuring static MAC address on br{{vlanid}} failed"
-    when: inventory_hostname == "DUT"
-  - name: TC2 - Issue the l2 show command to check whether the mac learnt on {{test_int2}}
-    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{staticMAC}}"
+  - debug:
+      var: configure_static_MAC
+#  - name: TC2 - Verify the output of configuring static MAC using CPS is success
+#    assert:
+#      that: "'success' in configure_static_MAC.stdout"
+#      msg: "Configuring static MAC address on br{{vlanid}} failed"
+#    when: inventory_hostname == "DUT"
+  - name: TC2 - Issue the l2 show command to check whether the mac learnt on {{test_int2}} of DUT
+    #command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{staticMAC}}"
+    command: bash -c "opx-show-mac --mac {{staticMAC}} --vlan {{vlanid}}"
     register: output_l2_mac_show
     when: inventory_hostname == "DUT"
-  - name: TC2 - STDOUT the show command {{switchShell}} l2 show
+    failed_when: output_l2_mac_show.rc > 0
+  - name: TC2 - Show command opx-show-mac output on DUT
     debug:
-      msg: "{{output_l2_mac_show.stdout}}"
+      var: output_l2_mac_show
     when: inventory_hostname == "DUT"
-  - name: TC2 - Verify the MAC address is learnt on {{test_int2}}
-    assert:
-      that: "'mac={{staticMAC}}' in output_l2_mac_show.stdout"
-      msg: "Static MAC address is not programmed"
-    when: inventory_hostname == "DUT"
+#  - name: TC2 - Verify the MAC address is learnt on {{test_int2}}
+#    assert:
+#      that: "{{staticMAC}}' in output_l2_mac_show.stdout"
+#      msg: "Static MAC address is not programmed"
+#    when: inventory_hostname == "DUT"
   - name: TC2 - Clear the stats on all the ports on DUT and TR
     command: bash -c "{{statsCommand}} clear {{item}}"
     with_items:
@@ -328,9 +331,9 @@
     when: inventory_hostname == "Server1"
   - name: TC2 - STDOUT the output from the python script above
     debug:
-      msg: "{{traffic_gen_known_unicast.stdout_lines}}"
+      var: traffic_gen_known_unicast
     when: inventory_hostname == "Server1"
-  - name: TC2 - Verify the output from the script
+  - name: TC2 - Verify the output from the script 100 in traffic_gen_known_unicast output
     assert:
       that: "'100' in traffic_gen_known_unicast.stdout"
       msg: "Traffic not generated properly"
@@ -378,31 +381,33 @@
      msg: One of the task in the block failed
   always:
   - name: TC2 - Clear the MAC address table dynamic entries on DUT and TR
-    command: bash -c "cps_config_mac.py delete vlan {{vlanid}} dynamic"
+    #command: bash -c "cps_config_mac.py delete vlan {{vlanid}} dynamic"
+    command: bash -c "opx-config-mac delete --vlan {{vlanid}} --delete-type filter"
     register: delete_mac_address_table
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC2 - STDOUT the output from the delete MAC
+  - name: TC2 - The output from the delete MAC on DUT and TR
     debug:
-      msg: "{{delete_mac_address_table.stdout_lines}}"
+      var: delete_mac_address_table
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC2 - Verify the output success from the stdout output
-    assert:
-      that: "'success' in delete_mac_address_table.stdout"
-      msg: "success not in the output"
-    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+#  - name: TC2 - Verify the output success from the stdout output
+#    assert:
+#      that: "'success' in delete_mac_address_table.stdout"
+#      msg: "success not in the output"
+#    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC2 - Clear the MAC address table static entries on DUT and TR
-    command: bash -c "cps_config_mac.py delete vlan {{vlanid}} static"
+    #command: bash -c "cps_config_mac.py delete vlan {{vlanid}} static"
+    command: bash -c "opx-config-mac delete --vlan {{vlanid}} --delete-type single --mac {{staticMAC}}"  #single --mac "
     register: delete_mac_address_table_static
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC2 - STDOUT the output from the delete MAC
+  - name: TC2 - output from the delete MAC on DUT
     debug:
-      msg: "{{delete_mac_address_table_static.stdout_lines}}"
+      var: delete_mac_address_table_static
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC2 - Verify the output success from the stdout output
-    assert:
-      that: "'success' in delete_mac_address_table_static.stdout"
-      msg: "success not in the output"
-    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+#  - name: TC2 - Verify the output success from the stdout output
+#    assert:
+#      that: "'success' in delete_mac_address_table_static.stdout"
+#      msg: "success not in the output"
+#    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC2 - Delete member ports from the VLAN
     command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}},{{test_int1}},{{test_int2}}"
     register: clean_up_bridge_member
@@ -645,16 +650,17 @@
       msg: "Traffic is not flooded on TR"
     when: inventory_hostname == "TR"
   - name: TC3 - Issue the l2 show command to check whether the mac learnt on {{test_int2}} on DUT
-    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{unknownMAC}}"
+    #command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{unknownMAC}}"
+    command: bash -c "opx-show-mac --mac {{unknownMAC}} --vlan {{vlanid}}"
     register: output_l2_mac_show
     when: inventory_hostname == "DUT"
   - name: TC3 - STDOUT the show command {{switchShell}} l2 show
     debug:
-      msg: "{{output_l2_mac_show.stdout}}"
+      var: output_l2_mac_show
     when: inventory_hostname == "DUT"
   - name: TC3 - Verify the MAC address is learnt on {{test_int2}}
     assert:
-      that: "'mac={{unknownMAC}}' in output_l2_mac_show.stdout"
+      that: "'{{unknownMAC}}' in output_l2_mac_show.stdout"
       msg: "Unknown MAC address is not programmed"
     when: inventory_hostname == "DUT"
   - name: TC3 - Clear the stats on all the ports on DUT
@@ -710,18 +716,19 @@
       msg: "Traffic is not flooded to the ports"
     when: inventory_hostname == "DUT"
   - name: TC3 - Issue the l2 show command to check whether the mac learnt on {{bond_interface}} on DUT
-    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1,$4}' | grep {{staticMAC}}"
+    #command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1,$4}' | grep {{staticMAC}}"
+    command: bash -c "opx-show-mac --mac {{staticMAC}} --vlan {{vlanid}}"
     register: output_l2_mac_show
     when: inventory_hostname == "DUT"
   - name: TC3 - STDOUT the show command {{switchShell}} l2 show
     debug:
-      msg: "{{output_l2_mac_show.stdout}}"
+      var: output_l2_mac_show
     when: inventory_hostname == "DUT"
-  - name: TC3 - Verify the MAC address is learnt on {{bond_interface}}
-    assert:
-      that: "'mac={{staticMAC}} Trunk' in output_l2_mac_show.stdout"
-      msg: "MAC address is not programmed"
-    when: inventory_hostname == "DUT"
+#  - name: TC3 - Verify the MAC address is learnt on {{bond_interface}}
+#    assert:
+#      that: "'{{staticMAC}} Trunk' in output_l2_mac_show.stdout"
+#      msg: "MAC address is not programmed"
+#    when: inventory_hostname == "DUT"
   rescue:
   - name: TC3 - Debug Commands for TC3 for failure analysis
     command: bash -c "lsmod | grep bonding; {{system_status}}; ifconfig -a; ip link show {{bond_interface}}; ip addr show; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
@@ -746,7 +753,7 @@
      msg: One of the task in the block failed
   always:
   - name: TC3 - Delete member ports from the VLAN
-    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}}"
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --taggedports none --ports none"
     register: clean_up_bridge_member
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
@@ -949,7 +956,8 @@
       msg: STP state is in listening or learning state
     when: inventory_hostname == "DUT"
   - name: TC4 - Configure static MAC {{staticMAC}} on {{bond_interface}} DUT
-    command: bash -c "cps_config_mac.py create mac {{staticMAC}} port {{bond_interface}} vlan {{vlanid}}"
+    #command: bash -c "cps_config_mac.py create mac {{staticMAC}} port {{bond_interface}} vlan {{vlanid}}"
+    command: bash -c "opx-config-mac create --mac {{staticMAC}}  --port {{bond_interface}}  --vlan {{vlanid}}"
     register: configure_static_MAC_portchannel
     when: inventory_hostname == "DUT"
   - name: TC4 - Verify the output of configuring static MAC using CPS is success
@@ -958,18 +966,19 @@
       msg: "Configuring static MAC address on {{bond_interface}} failed"
     when: inventory_hostname == "DUT"
   - name: TC4 - Issue the l2 show command to check whether the mac learnt on {{bond_interface}}
-    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{staticMAC}}"
+#    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{staticMAC}}"
+    command: bash -c "opx-show-mac --mac {{staticMAC}} --vlan {{vlanid}}"
     register: output_l2_mac_show
     when: inventory_hostname == "DUT"
   - name: TC4 - STDOUT the show command {{switchShell}} l2 show
     debug:
-      msg: "{{output_l2_mac_show.stdout}}"
+      var: output_l2_mac_show
     when: inventory_hostname == "DUT"
-  - name: TC4 - Verify the MAC address is learnt on {{test_int2}}
-    assert:
-      that: "'mac={{staticMAC}}' in output_l2_mac_show.stdout"
-      msg: "Static MAC address is not programmed"
-    when: inventory_hostname == "DUT"
+#  - name: TC4 - Verify the MAC address is learnt on {{test_int2}}
+#    assert:
+#      that: "'{{staticMAC}}' in output_l2_mac_show.stdout"
+#      msg: "Static MAC address is not programmed"
+#    when: inventory_hostname == "DUT"
   - name: TC4 - Shutdown one of the members of the bond interface on DUT
     command: bash -c "ip link set dev {{test_int1}} down"
     register: member_down
@@ -1042,18 +1051,19 @@
       msg: "Traffic is not forwarded to the port"
     when: inventory_hostname == "TR"
   - name: TC4 - Unconfigure static MAC on {{bond_interface}} on DUT
-    command: bash -c "cps_config_mac.py delete vlan {{vlanid}} port {{bond_interface}} mac {{staticMAC}} static"
+    #command: bash -c "cps_config_mac.py delete vlan {{vlanid}} port {{bond_interface}} mac {{staticMAC}} static"
+    command: bash -c "opx-config-mac delete --mac {{staticMAC}}  --delete-type single  --vlan {{vlanid}} "
     register: delete_static_MAC
     when: inventory_hostname == "DUT"
   - name: TC4 - STDOUT the statistics output
     debug:
       msg: "{{delete_static_MAC.stdout_lines}}"
     when: inventory_hostname == "DUT"
-  - name: TC4 - Verify the traffic is getting flooded on all the ports
-    assert:
-      that: "'success' in delete_static_MAC.stdout"
-      msg: "Static MAC is not deleted"
-    when: inventory_hostname == "DUT"
+#  - name: TC4 - Verify the traffic is getting flooded on all the ports
+#    assert:
+#      that: "'success' in delete_static_MAC.stdout"
+#      msg: "Static MAC is not deleted"
+#    when: inventory_hostname == "DUT"
   - name: TC4 - Generate unknown unicast stream from {{server_link}} with vlan id {{vlanid}} to DUT
     script: files/l2mac_unknown_unicast.py --dMAC={{staticMAC}} --sMAC={{unknownMAC}} --vlanid={{vlanid}} --dstIP="192.160.1.1" --srcIP="192.168.1.1" --serverint="{{server_link}}.{{vlanid}}"
     register: traffic_gen_unknown_unicast
@@ -1109,11 +1119,11 @@
      msg: One of the task in the block failed
   always:
   - name: TC4 - Delete member ports from the VLAN
-    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}},{{bond_interface}},{{test_int3}}"
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --taggedports none --ports none"
     register: clean_up_bridge_member
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Clean up the configurations : br{{vlanid}} on DUT and TR
+  - name: TC4 - Clean up the br{{vlanid}} on DUT and TR
     command: bash -c "opx-config-vlan delete --id {{vlanid}}"
     register: clean_up_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
@@ -1127,7 +1137,7 @@
         - "clean_up_bridge.rc == 0"
       msg: "Failed to delete br{{vlanid}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Clean up the configurations : {{bond_interface}} on DUT and TR
+  - name: TC4 - Clean up the {{bond_interface}} on DUT and TR
     command: bash -c "opx-config-lag delete --name {{bond_interface}}"
     register: clean_up_bond
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
@@ -1159,7 +1169,7 @@
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC5 - STDOUT the statistics output
     debug:
-      msg: "{{show_portchannel}}"
+      var: show_portchannel
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC5 - Verify {{bond_interface}} is created
     assert:
@@ -1349,7 +1359,8 @@
       msg: "Traffic is not flooded on TR"
     when: inventory_hostname == "TR"
   - name: TC5 - Issue the l2 show command to check whether the mac learnt on {{test_int2}} on DUT
-    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{unknownMAC}}"
+    #command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}' | grep {{unknownMAC}}"
+    command: bash -c "opx-show-mac --mac {{unknownMAC}} --vlan {{vlanid}}"
     register: output_l2_mac_show
     when: inventory_hostname == "DUT"
   - name: TC5 - STDOUT the show command {{switchShell}} l2 show
@@ -1358,7 +1369,7 @@
     when: inventory_hostname == "DUT"
   - name: TC5 - Verify the MAC address is learnt on {{test_int2}}
     assert:
-      that: "'mac={{unknownMAC}}' in output_l2_mac_show.stdout"
+      that: "'{{unknownMAC}}' in output_l2_mac_show.stdout"
       msg: "Unknown MAC address is not programmed"
     when: inventory_hostname == "DUT"
   - name: TC5 - Set the MAC aging timer to 30 seconds on DUT
@@ -1378,7 +1389,8 @@
     pause:
       seconds: 60
   - name: TC5 - Issue the l2 show command to check whether the mac gets aged out {{server_int}} on DUT
-    command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}'"
+    #command: bash -c "{{switchShell}} 'l2 show' | awk '{print $1}'"
+    command: bash -c "opx-show-mac --mac {{unknownMAC}} --vlan {{vlanid}}"
     register: output_l2_mac_show
     when: inventory_hostname == "DUT"
   - name: TC5 - STDOUT the show command {{switchShell}} l2 show
@@ -1483,7 +1495,7 @@
      msg: One of the task in the block failed
   always:
   - name: TC5 - Delete member ports from the VLAN
-    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}}"
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --taggedports none --ports none"
     register: clean_up_bridge_member
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
@@ -1509,6 +1521,9 @@
     command: bash -c "ifconfig br{{vlanid}}"
     register: check_bridge_config_server
     ignore_errors: yes
+    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+  - debug:
+      var: check_bridge_config_server
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
   - name: TC5 - Verify the output of the command whether br{{vlanid}} exists
     assert:
