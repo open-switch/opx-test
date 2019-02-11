@@ -223,14 +223,15 @@
     msg: "{{result_getkrouteunconfig.stdout}}"
 
 - name: SEND -Configure Static route through CPS ADD
-  command: bash -c "ip link set dev {{test_int1}} up; {{ path }}/cps_config_route.py --add --ip {{test_route2}} --nh {{test_via}}"
+#  command: bash -c "ip link set dev {{test_int1}} up; {{ path }}/cps_config_route.py --add --ip {{test_route2}} --nh {{test_via}}"
+  command:  bash -c "ip link set dev {{test_int1}} up; opx-config-route create --vrf_name default --dst {{test_route2}}/{{test_cps_prefix}} --nh {{test_via}}"
   become: true
   ignore_errors: yes
   register: result_cpsaddroute
   changed_when: False
 - name: INFO - Any messages printed during route configuration are shown here
   debug:
-    msg: "{{result_cpsaddroute.stdout}}"
+    var: result_cpsaddroute
 - name: VERIFY- Check whether the CPS get succeeded
   assert:
     that: "'Success' in result_cpsaddroute.stdout"
@@ -258,11 +259,15 @@
     msg: "Route 0x{{test_route2hex}} not found"
 
 - name: SEND -Unconfigure Static route through CPS Delete
-  command: bash -c "{{path}}/cps_config_route.py --del --ip {{test_route2}}; ip addr del {{test_route1}}/{{test_prefix}} dev {{test_int1}}"
+#  command: bash -c "{{path}}/cps_config_route.py --del --ip {{test_route2}}; ip addr del {{test_route1}}/{{test_prefix}} dev {{test_int1}}"
+  command:  bash -c "ip link set dev {{test_int1}} up; opx-config-route delete --vrf_name default --dst {{test_route2}}; ip addr del {{test_route1}}/{{test_prefix}} dev {{test_int1}}"
   become: true
   ignore_errors: yes
   register: result_cpsdelroute
   changed_when: False
+- name: INFO - Any messages printed during route configuration are shown here
+  debug:
+    var: result_cpsdelroute
 - name: INFO - Any messages printed during route configuration are shown here
   debug:
     msg: "{{result_cpsdelroute.stdout}}"

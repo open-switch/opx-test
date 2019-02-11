@@ -379,9 +379,15 @@
     debug:
       var: result
   - name: Flush ips from interfaces on Server1 and Server2
-    command: bash -c "ip link set dev {{server_link}} down | ip addr flush dev {{server_link}}"
+    command: bash -c "ip addr del {{IPAddr2}}/{{prefixlen}} dev {{server_link}}"
     register: result
-    when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
+    when: (inventory_hostname == "Server1")
+    ignore_errors: yes
+  - name: Remove ips from interfaces on Server1 and Server2
+    command: bash -c "ip addr del {{IPAddr4}}/{{prefixlen}} dev {{server_link}}"
+    register: result
+    when: (inventory_hostname == "Server2")
+    ignore_errors: yes
   - name: TC7 - Check Flush ips output
     debug:
       var: result
@@ -587,15 +593,12 @@
   - debug:
       var: result
     when: inventory_hostname == "Server2"
-#  - name: TC10 -  Show command to check static route present on Server2
-#    command: bash -c "ip route | grep {{route0}}" 
-#    register: result
-#    when: inventory_hostname == "Server2"
-  - name: TC10 - Verify static route present on Server2
-    assert:
-      that: "'{{route0}}' in result.stdout"
-      msg: "Static route not present on Server2"
+  - name: TC10 -  Show command to check static route present on Server2
+    command: bash -c "ip route | grep {{route0}}" 
+    register: result
     when: inventory_hostname == "Server2"
+  - debug:
+      var: result
   - name: TC10 - Ping Server2 to test static route configuration on DUT
     command:  bash -c "ping {{IPAddr3}} -c 50 -W 5"
     register: result
@@ -650,7 +653,7 @@
         - "{{test_int1}}"
     when: inventory_hostname == "TR"
     ignore_errors: yes
-  - name: Bring down interface on Server2
-    command: bash -c "ip link set {{server_link}} down; ip addr flush dev {{server_link}} "
-    when: inventory_hostname == "Server2"
-    ignore_errors: yes
+#  - name: Bring down interface on Server2
+#    command: bash -c "ip addr del {{IPAddr3}}/{{prefixlen}} dev {{server_link}}"
+#    when: inventory_hostname == "Server2"
+#    ignore_errors: yes

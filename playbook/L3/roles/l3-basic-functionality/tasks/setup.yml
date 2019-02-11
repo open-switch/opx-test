@@ -34,12 +34,12 @@
   - name: Fanout the ports connected to server
     command: bash -c "opx-config-fanout --port {{fanoutport}} --mode {{splitport}} --speed {{splitspeed}}" 
     register: result
+    ignore_errors: yes
   - debug:
       var: result
   - name: Check the fanout port exists
     command: bash -c "ip link show {{server_int}}"
-    register: result
-    ignore_errors: yes
+    register: result 
   - debug:
       var: result
   - name: Bring up the front end ports connected to DUT,TR 
@@ -61,6 +61,7 @@
   - name: Clean up the LAGs in DUT and TR
     command: bash -c "opx-config-lag set --name {{bond_interface}} --unblockedports none --blockedports none; opx-config-lag delete --name {{bond_interface}}"
     register: del_lag
+    ignore_errors: yes
   - debug:
       var: result
   when: (inventory_hostname == 'DUT') or (inventory_hostname == 'TR') 
