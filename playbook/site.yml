@@ -57,3 +57,11 @@
   become: false
   roles:
     - {role: General/roles/img_install, tags: ['img_install']}
+
+- hosts: 2host
+  gather_facts: false
+  become: true
+  pre_tasks:
+     - setup:
+  roles:
+    - {role: L3/roles/l3-basic-functionality, tags: ['l3-basic-functionality']}
