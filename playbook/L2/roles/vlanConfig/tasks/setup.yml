@@ -1,0 +1,59 @@
+---
+
+- block:
+  - name: Dump the showversion command on DUT
+    command: bash -c "{{path}}/{{versionCommand}}"
+    register: show_version
+  - name: Get the MACHINE ID of DUT
+    command: bash -c "cat /var/lib/dbus/machine-id"
+    register: get_machine_id
+  - name: Clean up the Journalctl Log
+    command: bash -c "rm -rf /var/run/log/journal/{{get_machine_id.stdout_lines[0]}}/*"
+    register: clean_up_logs
+  - name: Enable logging for NAS_L2 on DUT
+    command: bash -c "opx_logging_cli enable NAS_L2 debug; opx_logging_cli enable NETLINK debug"
+    register: enable_log
+  - name: Restart the systemd-journald service
+    service:
+      name: systemd-journald
+      state: restarted
+  - name: Kill the user process
+    command: bash -c "pidof opx_nas_daemon"
+    register: pid_process
+  - name: Issue the command to kill the process
+    command: bash -c "kill -USR1 {{pid_process.stdout_lines[0]}}"
+    register: kill_process
+  - name: Install bridge-utils package
+    apt:
+      name: bridge-utils
+      update_cache: yes
+    ignore_errors: yes
+  - name: Cleanup the bridges on DUT
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan delete --id {{vlanid}}"
+    register: del_bridge
+    ignore_errors: yes
+  - name: Check the fanout port exists
+    command: bash -c "ip link show {{server_int}}"
+    register: fanout_int
+    ignore_errors: yes
+  - name: Bring up the front end ports connected to DUT
+    command: bash -c "ip link set dev {{item}} up"
+    with_items:
+        - "{{test_int1}}"
+        - "{{test_int2}}"
+  when: inventory_hostname in groups['testhost']
+
+- block:
+  - name: STDOUT the command to check the ports are up on DUT
+    command: bash -c "ip link show {{item}}"
+    with_items:
+        - "{{test_int1}}"
+        - "{{test_int2}}"
+    register: verify_status
+  - name: Verify the status of the interfaces on DUT
+    assert:
+      that:
+        - "'state UP' in verify_status.results[0].stdout"
+        - "'state UP' in verify_status.results[1].stdout"
+      msg: "Interfaces are not up"
+  when: inventory_hostname in groups['testhost']
