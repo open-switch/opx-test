@@ -104,7 +104,7 @@
   - name: TC3- Setup (Bring the ports up on DUT and TR)
     import_tasks: setup.yml  
   - name: TC3 - Create bond interface, Add members to LAG on DUT
-    command: bash -c "opx-config-lag create --name {{bond_interface}} --unblockedports {{test_int1}},{{test_int2}}; ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; opx-config-lag --name {{bond_interface}} --enable"
+    command: bash -c "opx-config-lag create --name {{bond_interface}} --unblockedports {{test_int1}},{{test_int2}}; ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; opx-config-lag set --name {{bond_interface}} --enable"
     register: result
   - pause:
       seconds: 3
