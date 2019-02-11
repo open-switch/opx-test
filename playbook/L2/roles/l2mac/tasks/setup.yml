@@ -55,6 +55,9 @@
         - "{{server_int}}"
         - "{{test_int1}}"
         - "{{test_int2}}"
+  - name: Clean up the LAGs in DUT and TR
+    command: bash -c "opx-config-lag set --name {{bond_interface}} --unblockedports none --blockedports none; opx-config-lag delete --name {{bond_interface}}"
+    register: del_lag
   when: (inventory_hostname in groups['2host'][0]) or (inventory_hostname in groups['2host'][1])
 
 - block:
