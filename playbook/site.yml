@@ -16,6 +16,14 @@
   roles:
     - {role: L2/roles/vlanConfig, tags: ['vlanConfig']}
 
+- hosts: 1host
+  gather_facts: false
+  pre_tasks:
+    - setup:
+  become: true
+  roles:
+    - {role: L2/roles/lagConfig, tags: ['lagConfig']}
+
 - hosts: 2host
   gather_facts: false
   become: true

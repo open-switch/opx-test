@@ -1,11 +1,11 @@
 ---
 
 - block:
-  - name: TC1 - Verify VLAN creation is successful
+  - name: Setup the switch before running the TCs
+    import_tasks: setup.yml
+  - name: TC1 - Verify if VLAN creation is successful
     shell: echo "***** Verify VLAN creation is successful *****"
     register: TC1
-  - name: TC1 - Setup the switch for running the TCs
-    import_tasks: setup.yml
   - name: TC1 - Create VLAN {{vlanid}} on DUT
     command: bash -c "opx-config-vlan create --id {{vlanid}} --type data"
     register: config_vlan
@@ -36,7 +36,7 @@
     assert:
       that: "'No such device' not in show_kernel.stdout"
       msg: "VLAN is not found in the NPU"
-  - name: TC1 - Pause for 2 seconds for the next TC to start
+  - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
 
@@ -51,7 +51,7 @@
     assert:
       that: "show_cps.stdout | match('br{{vlanid}}\n    VLAN ID:          {{vlanid}}\n    Name:             br{{vlanid}}\n    Interface index:  [0-9]+\n    Physical address: None\n    Tagged ports:     None\n    Untagged ports:   None\n    Type:             data\n    Learning mode:    UNKNOWN\n    MTU:              None')"
       msg: opx-show-vlan output did not match the expected pattern
-  - name: TC1 - Pause for 2 seconds for the next TC to start
+  - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
 
@@ -91,13 +91,8 @@
     command: bash -c "opx-show-vlan --id {{vlanid}}"
     register: show_cps
   - name: TC4 - Verify if the VLAN contains the untaggedport {{test_int2}} in the CPS data
-    #debug:
-            #msg: "{{show_cps.stdout_lines}}"
     assert:
-      that: 
-      - "show_cps.stdout | search('Untagged ports:   {{test_int2}}')"
-        #- "show_cps.stdout | search('Untagged')"
-      #that: "'Untagged ports:     {{test_int2}}' in show_cps.stdout_lines"
+      that: "show_cps.stdout | search('Untagged ports:   {{test_int2}}')"
       msg: CPS is not updated - untaggedport {{test_int2}} is not present in the VLAN {{vlanid}}
   - name: TC4 - Get the bridge data from kernel
     command: bash -c "brctl show br{{vlanid}}"
@@ -219,60 +214,66 @@
       seconds: 2
 
 
-  - name: TC10 - Verify if creating an existing VLAN throws an error
+  - name: TC9 - Verify if creating an existing VLAN throws an error
     shell: echo "***** Verify if creating an existing VLAN throws an error *****"
-    register: TC8
-  - name: TC10 - Creat VLAN {{vlanid}}, which is already existing
+    register: T9C
+  - name: TC9 - Creat VLAN {{vlanid}}, which is already existing
     command: bash -c "opx-config-vlan create --id {{vlanid}} --type data"
     register: config_vlan
-  - name: TC10 - Verify the resulted output is success or failure
+  - name: TC9 - Verify the resulted output is success or failure
     assert:
       that: "config_vlan.rc != 0"
       msg: "A new VLAN without existing VLAN id could be created"
-  when: (inventory_hostname == "DUT")
+  - name: Pause for 2 seconds for the next TC to start
+    pause:
 
+  when: (inventory_hostname == "DUT")
   tags: ['Verify_VLAN_Configurations','sanity']
+
+
   rescue:
   - name: Debug Commands for failure analysis
     command: bash -c "ifconfig -a; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
     register: debug
   - name: Copy the journalctl logs to a log file
-    command: bash -c "journalctl -b > /tmp/TC_VLAN_Config_{{inventory_hostname}}"
+    command: bash -c "journalctl -b > /tmp/TC_VLAN_CONFIG_{{inventory_hostname}}"
     register: copy_log
   - name: Copy the journalctl logs to the local machine
     fetch:
-      src: /tmp/TC_VLAN_Config_{{inventory_hostname}}
-      dest: /tmp/TC_VLAN_Config_{{inventory_hostname}}
+      src: /tmp/TC_VLAN_CONFIG_{{inventory_hostname}}
+      dest: /tmp/TC_VLAN_CONFIG_{{inventory_hostname}}
       mode: 0755
       flat: yes
-  - name: TC1 - Remove the logs from DUT
+  - name: Remove the logs from DUT
     command: bash -c "rm -rf /tmp/TC*"
     register: delete_logs
   - name: Fail here as one of the tasks in block failed
     fail:
        msg: One of the task in the block failed
+
   when: (inventory_hostname == "DUT")
 
   always:
-  - name: TC9 - Verify if the VLAN could be deleted
+  - name: TC10 - Verify if the VLAN could be deleted
     shell: echo "***** Verify if the VLAN could be deleted *****"
-    register: TC9
-  - name: TC9 - Delete member ports from the VLAN
+    register: TC10
+  - name: TC10 - Delete member ports from the VLAN
     command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none"
     register: clean_up_bridge_member
     ignore_errors: yes
-  - name: TC9 - Clean up the bridge configurations on DUT
+  - name: TC10 - Clean up the bridge configurations on DUT
     command: bash -c "opx-config-vlan delete --id {{vlanid}}"
     register: clean_up_bridge
-  - name: TC9 - Check br{{vlanid}} exists on DUT 
+  - name: TC10 - Check br{{vlanid}} exists on DUT 
     command: bash -c "brctl show br{{vlanid}}"
     register: check_bridge_config
     ignore_errors: yes
-  - name: TC9 -  output the command whether br{{vlanid}} exists
+  - name: TC10 -  output the command whether br{{vlanid}} exists
     debug:
       msg: "{{check_bridge_config.stderr}}"
-  - name: TC9 - Verify the output of the command whether br{{vlanid}} exists
+  - name: TC10 - Verify the output of the command whether br{{vlanid}} exists
     assert:
       that: "'No such device' in check_bridge_config.stderr"
       msg: "br{{vlanid}} still present in the NPU"
+
   when: (inventory_hostname == "DUT")
