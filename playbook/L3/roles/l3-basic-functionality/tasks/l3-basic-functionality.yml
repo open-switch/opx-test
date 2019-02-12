@@ -192,7 +192,7 @@
   - debug:
       var: result
   - name: TC5 - Create bridge, Confgure vlan with tagged port 1 and 2 on DUT
-    command: bash -c "opx-config-vlan create --id {{vlanid}}; ip link set dev {{bridge}} up; opx-config-vlan add --id {{vlanid}} --taggedports {{test_int1}}; ip link set dev {{test_int1}}.{{vlanid}} up; opx-config-vlan add --id {{vlanid}} --taggedports {{test_int2}}; ip link set dev {{test_int2}}.{{vlanid}} up;"
+    command: bash -c "opx-config-vlan create --id {{vlanid}}; ip link set dev {{bridge}} up; opx-config-vlan add --id {{vlanid}} --taggedports {{test_int1}},{{test_int2}}; ip link set dev {{test_int1}}.{{vlanid}} up; ip link set dev {{test_int2}}.{{vlanid}} up;"
     register: result
   - debug:
       var: result
@@ -221,7 +221,7 @@
   when: inventory_hostname == "DUT" 
   always:
   - name: set bridge state down, remove menber to vlan, delete bridge
-    command: bash -c "ip link set dev {{bridge}} down; opx-config-vlan remove --id {{vlanid}} --taggedports {{test_int1}},{{test_int2}}; opx-config-vlan delete --id {{vlanid}}" 
+    command: bash -c "ip link set dev {{bridge}} down; opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan delete --id {{vlanid}}" 
     register: result   
     ignore_errors: yes
   - debug:
@@ -466,7 +466,7 @@
   - name: TC9- Setup (Bring the ports up on DUT,TR)
     import_tasks: setup.yml  
   - name: TC9 - Create bridge {{bridge}} and confgure vlan {{vlanid}} on DUT and TR
-    command: bash -c "brctl addbr {{bridge}}; ip link set dev {{bridge}} up; ip link add link {{test_int1}} name {{test_int1}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{test_int1}}.{{vlanid}} up; ip link add link {{test_int2}} name {{test_int2}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{test_int2}}.{{vlanid}} up; brctl addif {{bridge}} {{test_int1}}.{{vlanid}}; brctl addif {{bridge}} {{test_int2}}.{{vlanid}}; brctl show {{bridge}}"
+    command: bash -c "opx-config-vlan create --name {{vlanid}} --taggedports {{test_int1}},{{test_int2}}; ip link set dev {{bridge}} up; ip link set dev {{test_int1}}.{{vlanid}} up; ip link set dev {{test_int2}}.{{vlanid}} up; brctl show {{bridge}}"
     register: result
     when: (inventory_hostname == "DUT")or (inventory_hostname == "TR") 
   - debug: 
@@ -511,7 +511,7 @@
       var: result
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")  
   - name: TC9 - set bridge state down, flush ips, remove menber to vlan, delete bridge
-    command: bash -c "brctl show {{bridge}}; ip link set dev {{bridge}} down;ip addr flush dev {{bridge}}; brctl delif {{bridge}} {{test_int1}}.{{vlanid}};  brctl delif {{bridge}} {{test_int2}}.{{vlanid}}; ip link set dev {{test_int1}}.{{vlanid}} down; ip link delete  {{test_int1}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{test_int2}}.{{vlanid}} down; ip link delete  {{test_int2}}.{{vlanid}} type vlan id {{vlanid}}; brctl delbr {{bridge}}" 
+    command: bash -c "brctl show {{bridge}}; ip link set dev {{bridge}} down;ip addr flush dev {{bridge}}; opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan delete --id {{vlanid}}" 
     register: result
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")  
