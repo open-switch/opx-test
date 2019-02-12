@@ -1,23 +1,24 @@
 # Role Name
 
-This role is used to validate that VLAN configurations are working fine
+This role is used to validate that LAG configurations are working fine
 
 # Requirements
 
-The prerequisite for this role is to have the testbed ready with OPX installed. The testbed requirement here is to have 1 switches(DUT) with OPX installed. 
+The prerequisite for this role is to have the testbed ready with OPX installed. The testbed requirement here is to have 1 switch(DUT) with OPX installed. 
 
 
 # Role Variables
 
 The role variable file is defined in `vars/main.yml`. The sample file and the description of each is defined below.
 ```
-vlanid:   100
+lagid:   100
 unknownMAC:  "00:00:00:11:11:11"
 dMAC:    "00:00:00:33:33:33"
 staticMAC:    "00:00:00:22:22:22"
 bond_interface:    "bond1"
+
 ```
-* `vlanid` is the VLAN ID variable used for the test cases
+* `lagid` is the LAG ID variable used for the test cases
 * `unknownMAC` --- MAC address for flooding/forwarding
 * `dMAC` is the destination MAC variable used for unicast traffic 
 * `staticMAC` is the static MAC variable Used to configure static MAC on the port
@@ -38,19 +39,19 @@ Have the testbed ready with a switch with OPX installed.
   pre_tasks:
      - setup:
   roles:
-    - {role: L2/roles/vlanConfig, tags: ['vlanConfig']}
+    - {role: L2/roles/lagConfig, tags: ['lagConfig']}
 ```
 # TestCases
-   * Verify VLAN Creation is successful
+   * Verify LAG Creation is successful
    * Verify if the LAG show output matches the expected syntax
-   * Verify if a tagged port could be added to the VLAN
-   * Verify if an untagged port could be added to the VLAN
-   * Verify if a tagged port could be removed from the VLAN
-   * Verify if an untagged port could be removed from the VLAN
-   * Verify if a the tagged port list of the VLAN could be force set to a given port-list
-   * Verify if a the untagged port list of the VLAN could be force set to a given port-list
-   * Verify if a new VLAN with the same VLAN ID that of an existing VLAN could be created
-   * Verify VLAN Deletion is successful
+   * Verify if a blocked port could be added to the LAG
+   * Verify if an unblocked port could be added to the LAG
+   * Verify if a blocked port could be removed from the LAG
+   * Verify if an unblocked port could be removed from the LAG
+   * Verify if the blocked port list of the LAG could be force set to a given port-list
+   * Verify if the unblocked port list of the LAG could be force set to a given port-list
+   * Verify if a new LAG with the same LAG ID that of an existing LAG could be created
+   * Verify LAG Deletion is successful
 # License
 
 BSD
