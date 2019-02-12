@@ -7,7 +7,7 @@
   - name: TC1 - Setup (Bring the port up on DUT)
     import_tasks: setup.yml
   - name: TC1 - Configure ipv4_address to a physical interface on DUT
-    command: bash -c "ip addr add {{IPAddr1}}/{{prefixlen}} dev {{test_int1}}"
+    command: bash -c "ip addr flush dev {{test_int1}};ip addr add {{IPAddr1}}/{{prefixlen}} dev {{test_int1}}"
     ignore_errors: yes
     register: result
   - name: TC1 - Using opx-show-route on DUT to check the route present
@@ -15,7 +15,7 @@
     register: result
     failed_when: result.rc == 1
   - name: TC1 - Unconfigure ipv4_address to a physical interface on DUT
-    command: bash -c "ip addr flush  dev {{test_int1}}"
+    command: bash -c "ip addr del {{IPAddr1}}/{{prefixlen}} dev {{test_int1}}"
     register: result
   - name: TC1 - Using opx-show-route on DUT to check the route absent 
     command: bash -c "opx-show-route | grep {{route0}}"
@@ -40,7 +40,7 @@
   - name: TC1 - Start Cleanup
     command: bash -c "echo 'Start Cleanup for TC1'"
   - name: Bring down interface on DUT
-    command: bash -c "ip link set {{test_int1}} down; ip addr flush dev {{test_int1}}"
+    command: bash -c "ip link set {{test_int1}} down"
     ignore_errors: yes
   when: inventory_hostname == "DUT" 
 
@@ -340,12 +340,12 @@
   - debug:
       var: result
   - name: TC7 - Configure ipv4_address to a fanout interface on TR
-    command: bash -c "ip addr add {{IPAddr3}}/{{prefixlen}} dev {{server_int}}"
+    command: bash -c "ip addr add {{IPAddr4}}/{{prefixlen}} dev {{server_int}}"
     register: result
     when: (inventory_hostname == "TR") 
     ignore_errors: yes
   - name: TC7 - Configure ipv4_address to a fanout interface on Server2
-    command: bash -c "ip addr add {{IPAddr4}}/{{prefixlen}} dev {{server_link}}"
+    command: bash -c "ip addr add {{IPAddr3}}/{{prefixlen}} dev {{server_link}}"
     register: result
     when: (inventory_hostname == "Server2") 
     ignore_errors: yes
@@ -378,13 +378,13 @@
   - name: TC7 - Check Flush ips output
     debug:
       var: result
-  - name: Flush ips from interfaces on Server1 and Server2
+  - name: Remove ips from interfaces on Server1 and Server2
     command: bash -c "ip addr del {{IPAddr2}}/{{prefixlen}} dev {{server_link}}"
     register: result
     when: (inventory_hostname == "Server1")
     ignore_errors: yes
   - name: Remove ips from interfaces on Server1 and Server2
-    command: bash -c "ip addr del {{IPAddr4}}/{{prefixlen}} dev {{server_link}}"
+    command: bash -c "ip addr del {{IPAddr3}}/{{prefixlen}} dev {{server_link}}"
     register: result
     when: (inventory_hostname == "Server2")
     ignore_errors: yes
@@ -465,28 +465,28 @@
     shell: echo "*****Verify_arp_get_resolved_and_ping_works_on_vlan_interface*****"
   - name: TC9- Setup (Bring the ports up on DUT,TR)
     import_tasks: setup.yml  
-  - name: TC9 - Create bridge, Confgure vlan on DUT 
-    command: bash -c "brctl addbr {{bridge}}; ip link set dev {{bridge}} up; ip link add link {{test_int1}} name {{test_int1}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{test_int1}}.{{vlanid}} up; ip link add link {{test_int2}} name {{test_int2}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{test_int2}}.{{vlanid}} up; brctl addif {{bridge}} {{test_int1}}.{{vlanid}}; brctl addif {{bridge}} {{test_int2}}.{{vlanid}}"
+  - name: TC9 - Create bridge {{bridge}} and confgure vlan {{vlanid}} on DUT and TR
+    command: bash -c "brctl addbr {{bridge}}; ip link set dev {{bridge}} up; ip link add link {{test_int1}} name {{test_int1}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{test_int1}}.{{vlanid}} up; ip link add link {{test_int2}} name {{test_int2}}.{{vlanid}} type vlan id {{vlanid}}; ip link set dev {{test_int2}}.{{vlanid}} up; brctl addif {{bridge}} {{test_int1}}.{{vlanid}}; brctl addif {{bridge}} {{test_int2}}.{{vlanid}}; brctl show {{bridge}}"
     register: result
     when: (inventory_hostname == "DUT")or (inventory_hostname == "TR") 
   - debug: 
       var: result
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC9 - Configure IPv4 address to bridge on DUT
-    command: bash -c "ip addr add {{IPAddr1}}/{{prefixlen}} dev {{bridge}}"
+  - name: TC9 - Configure IPv4 address to bridge {{bridge}} on DUT
+    command: bash -c "ip addr flush dev {{bridge}}; ip addr add {{IPAddr1}}/{{prefixlen}} dev {{bridge}}; ifconfig {{bridge}}"
     register: result 
     when: (inventory_hostname == "DUT")    
   - debug: 
       var: result
     when: (inventory_hostname == "DUT") 
-  - name: TC9 - Configure IPv4 address to bridge on TR
-    command: bash -c "ip addr add {{IPAddr2}}/{{prefixlen}} dev {{bridge}}"
+  - name: TC9 - Configure IPv4 address to bridge {{bridge}} on TR
+    command: bash -c "ip addr flush dev {{bridge}}; ip addr add {{IPAddr2}}/{{prefixlen}} dev {{bridge}}; ifconfig {{bridge}}"
     register: result
     when: (inventory_hostname == "TR")    
   - debug: 
       var: result
     when: (inventory_hostname == "TR") 
-  - name: TC9 - Verify arp got resolved and Ping success from DUT to TR 
+  - name: TC9 - Verify arp got resolved and ping success from DUT to TR 
     command: bash -c "ping -c 10 {{IPAddr2}}"
     register: result
     when: inventory_hostname == "DUT"
@@ -517,6 +517,7 @@
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")  
   - debug:
       var: result
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC9 - Verify bridge does not exist
     command: bash -c "brctl show {{bridge}} | if [ $? -eq 0 ]; then echo 'no bridge'; else grep {{bridge}}; fi"
     register: result
@@ -537,27 +538,37 @@
   - debug:
       var: result
   - name: TC10 - Configure IP address on DUT 
-    command: bash -c "ip addr add {{IPAddr1}}/{{prefixlen}} dev {{test_int1}}"
+    command: bash -c "ip addr flush dev {{test_int1}}; ip addr add {{IPAddr1}}/{{prefixlen}} dev {{test_int1}}"
     ignore_errors: yes
     register: result 
     when: inventory_hostname == "DUT"
   - debug: 
       var: result
-  - name: TC10 - Confgure IP address to an interface on TR 
-    command: bash -c "ip addr add {{IPAddr2}}/{{prefixlen}} dev {{test_int1}}"
+    when: inventory_hostname == "DUT"
+  - name: TC10 - Confgure IP address {{IPAddr2}} to an interface on TR 
+    command: bash -c "ip addr flush dev {{test_int1}}; ip addr add {{IPAddr2}}/{{prefixlen}} dev {{test_int1}}"
     register: result
     ignore_errors: yes
     when: (inventory_hostname == "TR")
-  - name: TC10 - Confgure IP address (200) to the connected interface on Server2
-    command: bash -c "ip addr add {{IPAddr3}}/{{prefixlen}} dev {{server_link}}"
+  - debug: 
+      var: result
+    when: inventory_hostname == "TR"
+  - name: TC10 - Confgure IP address {{IPAddr3}} to the connected interface on Server2
+    command: bash -c "ip addr flush dev {{server_link}}; ip addr add {{IPAddr3}}/{{prefixlen}} dev {{server_link}}"
     register: result
     ignore_errors: yes
     when: (inventory_hostname == "Server2")
+  - debug: 
+      var: result
+    when: inventory_hostname == "Server2"
   - name: TC10 - Confgure IP address to a physical interface on TR
-    command: bash -c "ip addr add {{IPAddr4}}/{{prefixlen}} dev {{server_int}}"
+    command: bash -c "ip addr flush dev {{server_int}}; ip addr add {{IPAddr4}}/{{prefixlen}} dev {{server_int}}"
     register: result
     ignore_errors: yes
     when: (inventory_hostname == "TR")
+  - debug: 
+      var: result
+    when: inventory_hostname == "TR"
   - name: TC10 - Send ICMP request from traffic generator(Server2) port to TR
     script: files/l3_unknown_unicast.py --dstIP={{IPAddr4}} --srcIP={{IPAddr3}} --serverint={{server_link}} 
     #command:  bash -c "ping -c 10 {{IPAddr4}}"
@@ -565,6 +576,7 @@
     when: inventory_hostname == "Server2"
   - debug: 
       var: result
+    when: inventory_hostname == "Server2"
   - name: TC10 - Send ARP request from DUT to TR
     command:  bash -c "ping -c 10 {{IPAddr2}}"
     register: result
@@ -578,7 +590,10 @@
     register: result
     when: inventory_hostname == "DUT"
     ignore_errors: yes
-  - name: TC10 -  Verify l3 defip table configuration on DUT1 to check the {{route1}} present
+  - debug:
+      var: result
+    when: inventory_hostname == "DUT"
+  - name: TC10 -  View routes on DUT1 to check the {{route1}} present
     command: bash -c "opx-show-route  --vrf_name default | grep '{{route1}}'" 
     register: result
     when: inventory_hostname == "DUT"
@@ -653,7 +668,7 @@
         - "{{test_int1}}"
     when: inventory_hostname == "TR"
     ignore_errors: yes
-#  - name: Bring down interface on Server2
-#    command: bash -c "ip addr del {{IPAddr3}}/{{prefixlen}} dev {{server_link}}"
-#    when: inventory_hostname == "Server2"
-#    ignore_errors: yes
+  - name: Bring down interface on Server2
+    command: bash -c "ip addr del {{IPAddr3}}/{{prefixlen}} dev {{server_link}}"
+    when: inventory_hostname == "Server2"
+    ignore_errors: yes
