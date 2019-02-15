@@ -49,7 +49,7 @@
     register: show_cps
   - name: TC2 - Verify the syntax of the show output is correct
     assert:
-      that: "show_cps.stdout | match('br{{vlanid}}\n    VLAN ID:          {{vlanid}}\n    Name:             br{{vlanid}}\n    Interface index:  [0-9]+\n    Physical address: None\n    Tagged ports:     None\n    Untagged ports:   None\n    Type:             data\n    Learning mode:    UNKNOWN\n    MTU:              None')"
+      that: "show_cps.stdout | match('br{{vlanid}}\n    VLAN ID:          {{vlanid}}\n    Name:             br{{vlanid}}\n    Interface index:  [0-9]+\n    Physical address: [0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\n    Tagged ports:     None\n    Untagged ports:   None\n    Type:             data\n    Learning mode:    drop\n    MTU:              [0-9]+')"
       msg: opx-show-vlan output did not match the expected pattern
   - name: Pause for 2 seconds for the next TC to start
     pause:
