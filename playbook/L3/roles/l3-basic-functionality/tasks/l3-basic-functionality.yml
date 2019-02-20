@@ -205,7 +205,7 @@
     register: result
   - name: TC5 - Unconfigure ipv4_address to a bridge on DUT
     command: bash -c "ip addr flush dev {{bridge}}"
-  - name: TC5 - Verify l3 defip table configuration on DUT to check the route routeList absent
+  - name: TC5 - Verify l3 defip table configuration on DUT to check the route absent
     command: bash -c "opx-show-route | grep {{route0}}"
     register: result
     failed_when: result.rc == 0   
@@ -220,28 +220,29 @@
     register: result
   when: inventory_hostname == "DUT" 
   always:
-  - name: set bridge state down, remove menber to vlan, delete bridge
+  - name: TC5 - set bridge state down, remove menber to vlan, delete bridge
     command: bash -c "ip link set dev {{bridge}} down; opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan delete --id {{vlanid}}" 
     register: result   
     ignore_errors: yes
   - debug:
       var: result
-  - name: Verify bridge does not exist
+  - name: TC5 - Verify bridge does not exist
     command: bash -c "opx-show-vlan --id {{vlanid}}"
-    register: result   
+    register: result  
+    ignore_errors: yes
   - debug:
       var: result
-  - name: Check if the VLAN information exists
+  - name: TC5 - Check if the VLAN information exists
     assert:
       that: "'No VLAN information found' in result.stdout"
       msg: "VLAN {{vlanid}} is still present"
   - command: bash -c "brctl show {{bridge}} | grep {{bridge}}"
     register: result
     ignore_errors: yes
-  - name: Check if bridge does not exist
+  - name: TC5 - Check if bridge does not exist
     debug:
       var: result
-  - name: Bring down interface on DUT
+  - name: TC5 -Bring down interface on DUT
     command: bash -c "ip link set {{item}} down; ip addr flush dev {{item}}"
     with_items:
       - "{{test_int1}}"
@@ -402,7 +403,7 @@
     command: bash -c "ip link add {{bond_interface}} type bond mode 1 miimon 100; ip link set dev {{bond_interface}} up; ip link set dev {{test_int1}} down; ip link set {{test_int1}} master {{bond_interface}}; ip link set dev {{test_int2}} down; ip link set {{test_int2}} master {{bond_interface}}"
     register: result
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC7 - Create bond interface output
+  - name: TC8 - Create bond interface output
     debug:
       var: result
   - name: TC8 - Verify LAG interface state
@@ -436,7 +437,7 @@
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   tags: ['Verify arp got resolved and ping works on lag interface','sanity']
   rescue:
-  - name: TC5 - In rescue section, display output of task failed
+  - name: TC8 - In rescue section, display output of task failed
     debug:
       var: result
     ignore_errors: yes

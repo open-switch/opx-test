@@ -20,14 +20,18 @@
   shell: "route -n | grep -E '0.0.0.0\\s+{{ gw }}' || route add default gateway {{ gw }}"
   ignore_errors: yes
 
-- name: Install DBUS service (needed for ansible to set hostname)
-  become: yes
-  apt:
-    name: dbus
-    state: present
+#- name: Install DBUS service (needed for ansible to set hostname)
+#  become: yes
+#  apt:
+#    name: dbus
+#    state: present
 
-- hostname: name={{ inventory_hostname }}
+- name: change the hostname
+  command: bash -c "echo {{ inventory_hostname }} > /etc/hostname"
   become: yes
+
+#- hostname: name={{ inventory_hostname }}
+#  become: yes
 
 - name: Re-gather facts
   become: yes

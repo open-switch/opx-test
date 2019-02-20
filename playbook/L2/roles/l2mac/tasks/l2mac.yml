@@ -797,110 +797,110 @@
 
 
 - block:
-  - name: TC4 - Verify Layer 2 forwarding works on Static Portchannel
+  - name: TC4.1 - Verify Layer 2 forwarding works on Static Portchannel
     shell: echo "*****Verify Layer 2 forwarding works on Static Portchannel*****"
     register: TC4
-  - name: TC4- Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
+  - name: TC4.2 - Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
     import_tasks: setup.yml
-  - name: TC4 - Configure Static PortChannel on DUT and TR
+  - name: TC4.3 - Configure Static PortChannel on DUT and TR
     command: bash -c "opx-config-lag create --name {{bond_interface}}; ip link set dev {{bond_interface}} up"
     register: config_static_portchannel
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - STDOUT the output of portchannel
+  - name: TC4.4 - STDOUT the output of portchannel
     command: bash -c "ip link show {{bond_interface}}"
     register: show_static_portchannel
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - STDOUT the statistics output
+  - name: TC4.5 - STDOUT the statistics output
     debug:
       msg: "{{show_static_portchannel}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Verify {{bond_interface}} is created
+  - name: TC4.6 - Verify {{bond_interface}} is created
     assert:
       that: "'{{bond_interface}}' in show_static_portchannel.stdout"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Add member ports {{test_int1}} and {{test_int2}} to the {{bond_interface}}
+  - name: TC4.7 - Add member ports {{test_int1}} and {{test_int2}} to the {{bond_interface}}
     command: bash -c "opx-config-lag add --name {{bond_interface}} --unblockedports {{test_int1}},{{test_int2}}"
     register: config_member_ports_portchannel
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Bring up the member ports {{test_int1}},{{test_int2}} and {{bond_interface}}
+  - name: TC4.8 - Bring up the member ports {{test_int1}},{{test_int2}} and {{bond_interface}}
     command: bash -c "ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; ip link set dev {{bond_interface}} up"
     register: bring_up_member_ports_portchannel
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - STDOUT the show commands to check the member ports {{test_int1}},{{test_int2}} are inside the {{bond_interface}}
+  - name: TC4.9 - STDOUT the show commands to check the member ports {{test_int1}},{{test_int2}} are inside the {{bond_interface}}
     command: bash -c "ip link show {{test_int1}}; ip link show {{test_int2}}"
     register: show_member_ports
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - STDOUT the output
+  - name: TC4.10 - STDOUT the output
     debug:
       msg: "{{show_member_ports.stdout_lines}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Verify the member ports {{test_int1}} and {{test_int2}} are in {{bond_interface}}
+  - name: TC4.11 - Verify the member ports {{test_int1}} and {{test_int2}} are in {{bond_interface}}
     assert:
       that:
         - "'SLAVE' in show_member_ports.stdout_lines[0]"
       msg: "Member Ports are not added to {{bond_interface}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Verify the member ports interfaces are UP
+  - name: TC4.12 - Verify the member ports interfaces are UP
     assert:
       that:
         - "'state UP' in show_member_ports.stdout_lines[0]"
       msg: "Member ports are not up"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Configure Vlan {{vlanid}} on the server side and bring up the ports,bridge
+  - name: TC4.13 - Configure Vlan {{vlanid}} on the server side and bring up the ports,bridge
     command: bash -c "brctl addbr br{{vlanid}}; ip link add link {{server_link}} name {{server_link}}.{{vlanid}} type vlan id {{vlanid}};ip link set dev {{server_link}}.{{vlanid}} up; brctl addif br{{vlanid}} {{server_link}}.{{vlanid}}; ip link set dev {{server_link}} up; ip link set dev br{{vlanid}} up"
     register: configure_server
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
-  - name: TC4 - Create vlan {{vlanid}} tagged on DUT and TR
+  - name: TC4.14 - Create vlan {{vlanid}} tagged on DUT and TR
     command: bash -c "opx-config-vlan create --id {{vlanid}} --type data --taggedports {{server_int}}; brctl stp br{{vlanid}} on; ip link set dev br{{vlanid}} up"
     register: config_vlan
     changed_when: false
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Verify the CPS configuration of br{{vlanid}} is success
+  - name: TC4.15 - Verify the CPS configuration of br{{vlanid}} is success
     assert:
       that: "config_vlan.rc == 0"
       msg: "Vlan configuration through CPS failed"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Issue the show command to check br{{vlanid}} exists
+  - name: TC4.16 - Issue the show command to check br{{vlanid}} exists
     command: bash -c "ip link show br{{vlanid}}"
     register: show_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - STDOUT the output from the opx-config-vlan command
+  - name: TC4.17 - STDOUT the output from the opx-config-vlan command
     debug:
       msg: "{{show_bridge.stdout_lines}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Verify the resulted output is success or failure
+  - name: TC4.18 - Verify the resulted output is success or failure
     assert:
       that: "'br{{vlanid}}' in show_bridge.stdout"
       msg: "Vlan configuration failed"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Add static port-channel {{bond_interface}} and {{test_int3}} to br{{vlanid}}
+  - name: TC4.19 - Add static port-channel {{bond_interface}} and {{test_int3}} to br{{vlanid}}
     command: bash -c "opx-config-vlan add --id {{vlanid}} --taggedports {{bond_interface}},{{test_int3}}; ip link set dev {{test_int3}} up"
     register: add_portchannel_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Issue the show command for br{{vlanid}}
+  - name: TC4.20 - Issue the show command for br{{vlanid}}
     command: bash -c "brctl show br{{vlanid}}"
     register: show_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - STDOUT the show command for br{{vlanid}}
+  - name: TC4.21 - STDOUT the show command for br{{vlanid}}
     debug:
-      msg: "{{show_bridge.stdout_lines}}"
+      var: show_bridge
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - Verify {{bond_interface}} is added to the br{{vlanid}}
+  - name: TC4.22 - Verify {{bond_interface}} is added to the br{{vlanid}}
     assert:
       that: "'{{bond_interface}}.{{vlanid}}' in show_bridge.stdout"
       msg: "{{bond_interface}} is not added to the br{{vlanid}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: TC4 - STDOUT the ip link show command for br{{vlanid}} for server
+  - name: TC4.23 - STDOUT the ip link show command for br{{vlanid}} for server
     command: bash -c "ip link show br{{vlanid}} | awk '{print $8,$9}'"
     register: status_check_bridge_server
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
-  - name: TC4 - Verify br{{vlanid}} is up
+  - name: TC4.24 - Verify br{{vlanid}} is up
     assert:
       that: "'state UP' in status_check_bridge_server.stdout_lines[0]"
       msg: "br{{vlanid}} is not up"
     when: (inventory_hostname == "Server1") or (inventory_hostname == "Server2")
-  - name: TC4 - Pause for 30 seconds for STP convergence
+  - name: TC4.25 - Pause for 30 seconds for STP convergence
     pause:
       seconds: 30
   - name: TC4 - STDOUT the ip link show command for br{{vlanid}} for DUT and TR
@@ -1028,13 +1028,13 @@
     debug:
       msg: "{{known_stat_output.stdout_lines}}"
     when: inventory_hostname == "DUT"
-#  - name: TC4 - Verify the traffic is getting received on {{test_int2}} and dropped on {{test_int3}}
-#    assert:
-#      that:
-#        - known_stat_output.stdout_lines[0] | int >= 100
-#        - known_stat_output.stdout_lines[1] | int < 50
-#      msg: "Traffic is not forwarded to the port"
-#    when: inventory_hostname == "DUT"
+  - name: TC4 - Verify the traffic is getting received on {{test_int2}} and dropped on {{test_int3}}
+    assert:
+      that:
+        - known_stat_output.stdout_lines[0] | int >= 100
+        - known_stat_output.stdout_lines[1] | int < 50
+      msg: "Traffic is not forwarded to the port"
+    when: inventory_hostname == "DUT"
   - name: TC4 - Verify Known unicast traffic received on {{server_int}} on TR
     command: bash -c "{{statsCommand}} if_stat {{server_int}} | grep ether-tx-no-errors | awk '{print $3}'"
     register: known_stat_output_TR
