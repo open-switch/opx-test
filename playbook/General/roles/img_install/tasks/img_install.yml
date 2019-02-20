@@ -1,11 +1,11 @@
 ---
-##### Ansible Playbook for configure fanout interfaces on Dell OPX setup
+##### Ansible Playbook for configure fanout interfaces on Dell OS10 OPX setup
 ##### (c) 2018 Dell Technologies
 #####
-##### EX: Deploying new OPX image with option -e image=<http_url>
+##### EX: Deploying new OS10 OPX image with option -e image=<http_url>
 #####    $ ansible-playbook opx_install.yaml -e image=http://archive.openswitch.net/installers/2.3.0/Dell-EMC/PKGS_OPX-2.3.0-installer-x86_64.bin
 #####
-##### EX: Recover/Install OPX image on specific device, which current in ONIE shell (option "-e image=<http_url>" may be used)
+##### EX: Recover/Install OS10 OPX image on specific device, which current in ONIE shell (option "-e image=<http_url>" may be used)
 #####    $ ansible-playbook opx_install.yaml --skip-tags boot-onie --limit AG1
 #####
 ##### EX: Just configure the OPX with management IP.
@@ -19,36 +19,39 @@
     register: output
     
   - name: Set GRUB to boot ONIE
-    include_tasks: console-cmd.yml cmd="{{ grub_boot_onie }}" extra_exp="{{ get_onie_prompt }}"
+    include: console-cmd.yml cmd="{{ grub_boot_onie }}" extra_exp="{{ get_onie_prompt }}"
     when: 'output.stdout is not search("ONIE:/ #")'
     tags:
       - boot-onie
   
   - name: Reboot
-    include_tasks: console-cmd.yml cmd="reboot" timeout=300 extra_exp="{{ get_onie_prompt }}"
+    include: console-cmd.yml cmd="reboot" timeout=300 extra_exp="{{ get_onie_prompt }}"
     when: 'output.stdout is not search("ONIE:/ #")'
     tags:
       - boot-onie
     
-  - name: Sleep for 60 seconds (skip grub menu)
-    delegate_to: localhost
-    command: sleep 60
-    when: 'output.stdout is not search("ONIE:/ #")'
-    tags:
-      - boot-onie
-  
+#  - name: Sleep for 60 seconds (skip grub menu)
+#    delegate_to: localhost
+#    command: sleep 60
+#    when: 'output.stdout is not search("ONIE:/ #")'
+#    tags:
+#      - boot-onie
+          
   - name: Get to ONIE Prompt
-    include_tasks: console-cmd.yml exp="{{ get_onie_prompt }}" timeout=300
+    include: console-cmd.yml exp="{{ get_onie_prompt }}" timeout=300
+    retries: 3
+    delay: 3
+    until: 'output.stdout is search("ONIE:/ #")'
     tags:
       - install
 
   - name: configure management port (ONIE)
-    include_tasks: console-cmd.yml cmd="{{ set_onie_eth0 }}" 
+    include: console-cmd.yml cmd="{{ set_onie_eth0 }}" 
     tags:
       - install
   
   - name: Install OPX image
-    include_tasks: console-cmd.yml cmd="{{ nos_install }}" extra_exp={{ nos_install_exp }} timeout=500
+    include: console-cmd.yml cmd="{{ nos_install }}" extra_exp={{ nos_install_exp }} timeout=500
     register: output
     retries: 3
     delay: 2
@@ -61,35 +64,41 @@
       msg: "{{output.stdout}}"
 
   - fail:
-      msg: Failed to fetch OPX image for {{ inventory_hostname }}
+      msg: Failed to fetch OS10 OPX image for {{ inventory_hostname }}
     when: 'output.stdout is search("wget: (bad address|download timed out|server returned error)")'
     tags:
       - install
 
-  - name: Pause for 10 seconds to skip grub menu
-    pause:
-      seconds: 10
-    
-  - name: Sleep for 30 seconds (skip grub menu)
-    delegate_to: localhost
-    command: sleep 30
-    when: 'output.stdout is search("BIOS initializations|Installation finished|Rebooting...|NOS install successful")'
-    tags:
-      - install
+#  - name: Pause for 10 seconds to skip grub menu
+#    pause:
+#      seconds: 10
+#            
+#  - name: Sleep for 30 seconds (skip grub menu)
+#    delegate_to: localhost
+#    command: sleep 30
+#    when: 'output.stdout is search("BIOS initializations|Installation finished|Rebooting...|NOS install successful|Restarting system.|Saving ONIE support information|Installing GRUB")'
+#    tags:
+#     - install
       
   - name: Login to OPX
-    include_tasks: console-cmd.yml timeout=500
+    include: console-cmd.yml timeout=800
     tags:
       - install
 
   - name: Configure management port (OPX)
-    include_tasks: console-cmd.yml cmd="{{ set_eth0 }}" timeout=500
-  
+    include: console-cmd.yml cmd="{{ set_eth0 }}" timeout=500
+
+
   - name: Setting hostname
-    include_tasks: set-hostname.yml
+    include: set-hostname.yml
+
+#  - name: Flush the eth0 ip address
+#    become: yes
+#    command: bash -c "ip addr flush eth0"
     
-  - name: update /etc/network/interfaces.d/eth0
-    become: yes
-    template:
-      src: eth0.j2
-      dest: "/etc/network/interfaces.d/eth0"
+    
+#  - name: update /etc/network/interfaces.d/eth0
+#    become: yes
+#    template:
+#      src: eth0.j2
+#      dest: "/etc/network/interfaces.d/eth0"

@@ -55,10 +55,10 @@ Hardware switch with ONIE bootloader
 
 # Example Playbook
 
-1host is the group created in `/etc/ansible/hosts` file which has DUT mentioned.
+all is mentioned in hosts. -l option is used in command line to limit the image installation to DUT and TR
 
 ```
-- hosts: 1host
+- hosts: all
   gather_facts: false
   pre_tasks:
     - setup:
