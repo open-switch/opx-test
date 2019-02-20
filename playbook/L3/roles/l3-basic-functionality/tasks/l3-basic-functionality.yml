@@ -466,7 +466,7 @@
   - name: TC9- Setup (Bring the ports up on DUT,TR)
     import_tasks: setup.yml  
   - name: TC9 - Create bridge {{bridge}} and confgure vlan {{vlanid}} on DUT and TR
-    command: bash -c "opx-config-vlan create --name {{vlanid}} --taggedports {{test_int1}},{{test_int2}}; ip link set dev {{bridge}} up; ip link set dev {{test_int1}}.{{vlanid}} up; ip link set dev {{test_int2}}.{{vlanid}} up; brctl show {{bridge}}"
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --taggedports {{test_int1}},{{test_int2}}; ip link set dev {{bridge}} up; ip link set dev {{test_int1}}.{{vlanid}} up; ip link set dev {{test_int2}}.{{vlanid}} up; brctl show {{bridge}}"
     register: result
     when: (inventory_hostname == "DUT")or (inventory_hostname == "TR") 
   - debug: 
