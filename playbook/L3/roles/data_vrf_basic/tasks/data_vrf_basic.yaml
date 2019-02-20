@@ -2,7 +2,7 @@
 
 - block:
   - name: TC1 - Configure VRF
-    command: bash -c "{{vrf_config_cmd}} create --name {{vrf_name}}"
+    command: bash -c "{{vrf_config_cmd}} --create --vrf {{vrf_name}}"
     changed_when: false
     register: config_vrf
   - name: stdout the command output
@@ -10,30 +10,23 @@
       msg: "{{config_vrf.stdout}}" 
   - name: Verify if the configuration is successful
     assert:
-      that: "'Success' in config_vrf.stdout"
+      that: "'Successful' in config_vrf.stdout"
       msg: "VRF configuration failed"
-  - name: GET - VRF name from kernel
+  - name: GET - VRF name from namespace
     command: ip netns
     changed_when: false
     register: ipnetns_configvrf
   - name: stdout the command output
     debug:
       msg: "{{ipnetns_configvrf.stdout}}"
-  - name: GET - VRF name from NAS
-    command: bash -c "{{vrf_show_cmd}} --name {{vrf_name}}"
-    changed_when: false
-    register: showvrf
-  - name: stdout the command output
-    debug:
-      msg: "{{showvrf.stdout}}"
   - name: Verify the configured VRF in namespace
     assert:
-      that: "'{{vrf_name}}' in showvrf.stdout"
+      that: "'{{vrf_name}}' in ipnetns_configvrf.stdout"
       msg: VRF not present in namespace
   tags: ['verify_vrf_configuration','full','sanity']
   rescue:
   - name: TC1 - Debug commands for the failed test case 
-    command: bash -c "{{vrf_show_cmd}}; journalctl -b"
+    command: bash -c "{{vrf_config_cmd}} --show; journalctl -b"
     register: debug_TC1
   - name: TC1 - Copy the journalctl logs to a log file
     command: bash -c "journalctl -b > /tmp/TC1_configure_VRF_{{inventory_hostname}}"

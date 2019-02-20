@@ -6,18 +6,15 @@
   delegate_to: localhost
   become: no
   expect:
-    command: telnet {{ ansible_console }} {{ console_port }} -e {{ telnet_esc }} 
+    command: telnet {{ ansible_console }} {{ console_port }} -e {{ telnet_esc }}
     timeout: "{{ timeout|default(30) }}"
     responses: "{{ exp | default({}) | combine(default_exp) | combine(extra_exp) }}"
     echo: no
-    codec_errors: replace
   register: output
 
-
-- name: debug the output  
+- name: STDOUT the output
   debug:
     msg: "{{output.stdout}}"
-
 
 - fail:
    msg: System Crashed {{inventory_hostname}}
