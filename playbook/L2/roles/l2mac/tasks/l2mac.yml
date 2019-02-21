@@ -276,7 +276,6 @@
       msg: STP state is in listening or learning state
     when: inventory_hostname == "DUT"
   - name: TC2 - Configure static MAC {{staticMAC}} on br{{vlanid}} on {{test_int2}} of DUT
-    #command: bash -c "cps_config_mac.py create mac {{staticMAC}} port {{test_int2}} vlan {{vlanid}}"
     command: bash -c "opx-config-mac create --mac {{staticMAC}}  --port {{test_int2}}  --vlan {{vlanid}} --static"
     register: configure_static_MAC
     when: inventory_hostname == "DUT"
@@ -951,8 +950,7 @@
       msg: STP state is in listening or learning state
     when: inventory_hostname == "DUT"
   - name: TC4 - Configure static MAC {{staticMAC}} on {{bond_interface}} DUT
-    #command: bash -c "cps_config_mac.py create mac {{staticMAC}} port {{bond_interface}} vlan {{vlanid}}"
-    command: bash -c "opx-config-mac create --mac {{staticMAC}}  --port {{bond_interface}}  --vlan {{vlanid}}"
+    command: bash -c "opx-config-mac create --mac {{staticMAC}}  --port {{bond_interface}}  --vlan {{vlanid}} --static"
     register: configure_static_MAC_portchannel
     when: inventory_hostname == "DUT"
 #  - name: TC4 - Verify the output of configuring static MAC using CPS is success
@@ -1028,13 +1026,13 @@
     debug:
       msg: "{{known_stat_output.stdout_lines}}"
     when: inventory_hostname == "DUT"
-#  - name: TC4 - Verify the traffic is getting received on {{test_int2}} and dropped on {{test_int3}}
-#    assert:
-#      that:
-#        - known_stat_output.stdout_lines[0] | int >= 100
-#        - known_stat_output.stdout_lines[1] | int < 50
-#      msg: "Traffic is not forwarded to the port"
-#    when: inventory_hostname == "DUT"
+  - name: TC4 - Verify the traffic is getting received on {{test_int2}} and dropped on {{test_int3}}
+    assert:
+      that:
+        - known_stat_output.stdout_lines[0] | int >= 100
+        - known_stat_output.stdout_lines[1] | int < 50
+      msg: "Traffic is not forwarded to the port"
+    when: inventory_hostname == "DUT"
   - name: TC4 - Verify Known unicast traffic received on {{server_int}} on TR
     command: bash -c "{{statsCommand}} if_stat {{server_int}} | grep ether-tx-no-errors | awk '{print $3}'"
     register: known_stat_output_TR
@@ -1050,19 +1048,13 @@
       msg: "Traffic is not forwarded to the port"
     when: inventory_hostname == "TR"
   - name: TC4 - Unconfigure static MAC on {{bond_interface}} on DUT
-    #command: bash -c "cps_config_mac.py delete vlan {{vlanid}} port {{bond_interface}} mac {{staticMAC}} static"
-    command: bash -c "opx-config-mac delete --mac {{staticMAC}}  --delete-type single  --vlan {{vlanid}} "
+    command: bash -c "opx-config-mac delete --mac {{staticMAC}}  --delete-type single  --vlan {{vlanid}}"
     register: delete_static_MAC
     when: inventory_hostname == "DUT"
   - name: TC4 - STDOUT the statistics output
     debug:
       msg: "{{delete_static_MAC.stdout_lines}}"
     when: inventory_hostname == "DUT"
-#  - name: TC4 - Verify the traffic is getting flooded on all the ports
-#    assert:
-#      that: "'success' in delete_static_MAC.stdout"
-#      msg: "Static MAC is not deleted"
-#    when: inventory_hostname == "DUT"
   - name: TC4 - Generate unknown unicast stream from {{server_link}} with vlan id {{vlanid}} to DUT
     script: files/l2mac_unknown_unicast.py --dMAC={{staticMAC}} --sMAC={{unknownMAC}} --vlanid={{vlanid}} --dstIP="192.160.1.1" --srcIP="192.168.1.1" --serverint="{{server_link}}.{{vlanid}}"
     register: traffic_gen_unknown_unicast
