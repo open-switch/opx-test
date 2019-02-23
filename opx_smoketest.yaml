@@ -35,7 +35,7 @@
 
 
 
-- hosts: "{{ dut }}"
+- hosts: 1host
   
   vars:
     test_int:       e101-001-0
@@ -54,10 +54,6 @@
 
   tasks:
 
-    - name: SEND - opx_logging_cli disable all
-      become: true
-      command: /usr/bin/opx_logging_cli disable all
-      changed_when: False
 
     - name: SEND - ifconfig {{test_mgmtint}}
       command: /sbin/ifconfig {{test_mgmtint}}
@@ -254,17 +250,23 @@
 
     - block: 
       - name: SEND - cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 . A failure here could mean that the command didn't return any result (either bug or misconfig). Errors here are ignored, check the output next.
-        command:  /usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix={{test_route2hex}} base-route/obj/entry/prefix-len={{test_prefix}} 
+        command:  /usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix={{test_route2hex}} base-route/obj/entry/prefix-len={{test_prefix}} base-route/obj/entry/nh-list/ifname={{test_int}} 
         become: true
         register: result_getcps1
         changed_when: False
         ignore_errors: yes
+      - debug:
+          var: result_getcps1
+      - name : Sleep
+        pause:
+          minutes: 1
+
       - name: INFO - NAS routes (if empty, then configuration was not applied or there is some bug) 
         debug:
           msg: "{{result_getcps1.stdout_lines}}"
       - name: VERIFY - Check if the route 0x{{test_route2hex}} existse. If result_getcps1.stdout_lines does not have an element, then the error is because the result of the previous command was empty. It could be a bug.
         assert:
-          that: "'base-route/obj/entry/route-prefix = {{test_route2hex}}' in result_getcps1.stdout_lines"
+          that: "'base-route/obj/entry/route-prefix = {{test_route2hex}}' in result_getcps1.stdout"
           msg: "Route 0x{{test_route2hex}} not found"
       rescue:
       - name: DEBUG - Collecting data because the Test Failed on last VERIFY step
@@ -279,7 +281,7 @@
         when: "{{test_route2hex}} not in result_getcps1.stdout_lines"
 
     - name: SEND -Configure Static route through CPS ADD
-      command: bash -c "ip link set dev {{test_int}} up; /usr/bin/cps_config_route.py --add --ip {{test_route2}} --nh {{test_via}}"
+      command: bash -c "ip link set dev {{test_int}} up; /usr/bin/opx-config-route create --dst {{test_route2}} --nh_addr {{test_via}}"
       become: true
       ignore_errors: yes
       register: result_cpsaddroute
@@ -299,6 +301,9 @@
       assert:
         that: "'{{test_route2}}' in result_getkroute.stdout"
         msg: "'{{test_route2}}' is not programmed in kernel"
+    - name : Sleep
+      pause:
+        minutes: 1
     - name: SEND -CPS GET from NAS
       command:  /usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix={{test_route2hex}} base-route/obj/entry/prefix-len={{test_cps_prefix}}
       become: true
@@ -314,7 +319,7 @@
         msg: "Route 0x{{test_route2hex}} not found"
        
     - name: SEND -Unconfigure Static route through CPS Delete
-      command: bash -c "/usr/bin/cps_config_route.py --del --ip {{test_route2}}"
+      command: bash -c "/usr/bin/opx-config-route delete --dst {{test_route2}}"
       become: true
       ignore_errors: yes
       register: result_cpsdelroute
@@ -349,7 +354,7 @@
         msg: "Route 0x{{test_route2hex}} is found in NAS. CPS deletion failed"
 
     - name: SEND -Configure VLAN and add untagged ports using CPS set
-      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/cps_config_vlan.py --add --id {{test_vlan}} --port {{test_int}},{{test_int1}} --vlantype 1"
+      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/opx-config-vlan create --id {{test_vlan}} --ports {{test_int}},{{test_int1}}"
       become: true
       ignore_errors: yes
       register: result_cpsvlanadd
@@ -357,31 +362,19 @@
     - name: INFO - Any messages printed during VLAN configuration are shown here
       debug:
         msg: "{{result_cpsvlanadd.stdout_lines}}"
-    - name: VERIFY- Check whether the CPS get succeeded
-      assert:
-        that: "'Success' in result_cpsvlanadd.stdout"
-        msg: CPS set failed here
-    - name: SEND -CPS GET from NAS
-      command:  /usr/bin/cps_config_vlan.py --show
+    - name: Show
+      command: bash -c "/usr/bin/opx-show-vlan --id {{test_vlan}}"
       become: true
-      register: result_getvlancps
-      changed_when: False
       ignore_errors: yes
-    - name: INFO- Dumping VLAN Entry with the untagged ports
-      debug:
-        msg: "{{result_getvlancps.stdout_lines}}"
-    - name: VERIFY - Check if the vlan {{test_vlan}} exists. If the vlan  does not exists, then CPS get failed.
+      register: show_cps
+    - name: TC8 - Verify if the VLAN contains the untagged ports {{test_int}} and {{test_int1}} in the CPS data
       assert:
-        that: "'base-if-vlan/if/interfaces/interface/id = {{test_vlan}}' in result_getvlancps.stdout"
-        msg: "VLAN {{test_vlan}} not found in NAS"
-    - name: VERIFY - Check if the vlan {{test_vlan}} have untagged ports
-      assert:
-        that: "'dell-if/if/interfaces/interface/untagged-ports = {{test_int1}},{{test_int}}' in result_getvlancps.stdout"
-        msg: "Untagged ports {{test_int}},{{test_int1}} not present in CPS get"
-
+        that: "'Untagged ports' in show_cps.stdout"
+        msg: CPS is not updated - untagged ports {{test_int}} and {{test_int1}} are not present in the VLAN {{test_vlan}}
 
     - name: SEND -Delete one of the untagged port in vlan {{test_vlan}} using CPS set
-      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/cps_config_vlan.py --addport --name br{{test_vlan}} --port {{test_int1}}"
+      #command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/cps_config_vlan.py --addport --name br{{test_vlan}} --port {{test_int1}}"
+      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/opx-config-vlan remove --id {{test_vlan}} --ports {{test_int1}}"
       become: true
       ignore_errors: yes
       register: result_cpsvlanupdate
@@ -389,31 +382,18 @@
     - name: INFO - Any messages printed during VLAN configuration are shown here
       debug:
         msg: "{{result_cpsvlanupdate.stdout_lines}}"
-    - name: VERIFY- Check whether the CPS get succeeded
-      assert:
-        that: "'Success' in result_cpsvlanupdate.stdout"
-        msg: CPS set failed here
-    - name: SEND -CPS GET from NAS
-      command:  /usr/bin/cps_config_vlan.py --show
+    - name: SEND -CPS GET from NAS, check if {{test_int1}} removed from vlan id {{test_vlan}}
+      command:  /usr/bin/opx-show-vlan | grep {{test_int1}}
       become: true
       register: result_getvlancps
       changed_when: False
-      ignore_errors: yes
+      failed_when: result_getvlancps.rc == 0
     - name: INFO- Dumping VLAN Entry with the updated untagged ports
       debug:
         msg: "{{result_getvlancps.stdout_lines}}"
-    - name: VERIFY - Check if the vlan {{test_vlan}} exists. If the vlan  does not exists, then CPS get failed.
-      assert:
-        that: "'base-if-vlan/if/interfaces/interface/id = {{test_vlan}}' in result_getvlancps.stdout"
-        msg: "VLAN {{test_vlan}} not found in NAS"
-    - name: VERIFY - Check if the vlan {{test_vlan}} have the updated untagged ports
-      assert:
-        that: "'dell-if/if/interfaces/interface/untagged-ports = {{test_int1}}' in result_getvlancps.stdout"
-        msg: "Untagged ports {{test_int}} is present in CPS get"
-
 
     - name: SEND -Delete the vlan {{test_vlan}} using CPS set
-      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/cps_config_vlan.py --del --name br{{test_vlan}}"
+      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/opx-config-vlan delelte --id {{test_vlan}}"
       become: true
       ignore_errors: yes
       register: result_cpsvlandel
@@ -421,12 +401,8 @@
     - name: INFO - Any messages printed during VLAN deletion are shown here
       debug:
         msg: "{{result_cpsvlandel.stdout_lines}}"
-    - name: VERIFY- Check whether the CPS get succeeded
-      assert:
-        that: "'Success' in result_cpsvlandel.stdout"
-        msg: CPS set failed here
     - name: SEND -CPS GET from NAS
-      command:  /usr/bin/cps_config_vlan.py --show
+      command:  /usr/bin/opx-show-vlan
       become: true
       register: result_getvlancps
       changed_when: False
