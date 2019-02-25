@@ -224,7 +224,7 @@
 
 - name: SEND -Configure Static route through CPS ADD
 #  command: bash -c "ip link set dev {{test_int1}} up; {{ path }}/cps_config_route.py --add --ip {{test_route2}} --nh {{test_via}}"
-  command:  bash -c "ip link set dev {{test_int1}} up; opx-config-route create --vrf_name default --dst {{test_route2}}/{{test_cps_prefix}} --nh {{test_via}}"
+  command:  bash -c "ip link set dev {{test_int1}} up; opx-config-route create --vrf_name default --dst {{test_route2}}/{{test_cps_prefix}} --nh_addr {{test_via}}"
   become: true
   ignore_errors: yes
   register: result_cpsaddroute
