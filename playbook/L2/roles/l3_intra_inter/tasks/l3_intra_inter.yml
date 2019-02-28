@@ -201,12 +201,12 @@
      msg: One of the task in the block failed
   always:
   - name: TC1 - Clean up the bridge members on DUT
-    command: bash -c "opx-config-vlan remove --id {{vlanid}} --ports {{test_int2}} --taggedports {{server_int}},{{test_int1}}"
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none"
     register: clean_up_bridge_ports
     ignore_errors: yes
     when: (inventory_hostname == "DUT")
   - name: TC1 - Clean up the bridge members on TR
-    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{test_int1}}"
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none"
     register: clean_up_bridge_ports
     ignore_errors: yes
     when: (inventory_hostname == "TR")
@@ -485,7 +485,7 @@
      msg: One of the task in the block failed
   always:
   - name: TC2 - Clean up the bridge members on DUT
-    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{server_int}}"
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none"
     register: clean_up_bridge_ports
     ignore_errors: yes
     when: inventory_hostname == "DUT"
@@ -504,7 +504,7 @@
       msg: "br{{vlanid}} still present in the output"
     when: inventory_hostname == "DUT"
   - name: TC2 - Clean up the bridge members on DUT and TR
-    command: bash -c "opx-config-vlan remove --id {{interVLAN}} --taggedports {{test_int1}}"
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none"
     register: clean_up_bridge_ports
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
