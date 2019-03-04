@@ -2,14 +2,14 @@
 
 - block:
   - name: Bring up the ports on DUT and TR
-    command: bash -c "ifconfig {{vrf_port1}} up"
+    command: bash -c "ifconfig {{vrf_port1}} up; ifconfig {{vrf_port2}} up"
     changed_when: false
-    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+    when: (inventory_hostname == "DUT")
   - name: GET - The port status
-    command: bash -c "ifconfig {{vrf_port1}}"
+    command: bash -c "ifconfig {{vrf_port1}}; ifconfig {{vrf_port1}}"
     changed_when: false
     register: port_details
-    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+    when: (inventory_hostname == "DUT")
   - name: stdout the command output
     debug:
       msg: "{{port_details.stdout}}"
@@ -21,4 +21,4 @@
     assert:
       that: "'RUNNING' in port_details.stdout"
       msg: Port is not oper up
-    
+

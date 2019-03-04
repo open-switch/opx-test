@@ -69,14 +69,15 @@ Example Playbook
 
 TestCases
 ---------
-1. Verify arp got resolved and ping works on lag interface, 
-2. Verify l3 basic functioanlity configure ip on fanout port
+1. Verify arp got resolved and ping works on lag interface 
+2. Verify user can add modify and delete ipv4 address to a fanout interface
 3. Verify ping works between fannout interfaces
 4. Verify ping works between physical interfaces
 5. Verify user can add modify and delete ipv4 address to a lag interface
 6. Verify user can add modify and delete ipv4 address to a vlan_interface
 7. Verify_arp_get_resolved_and_ping_works_on_vlan_interface
 8. Verify_user_can_add_modify_and_delete_Ipv4_address_to_a_physical_interface
+9. Verify static route configuration works 
 
 License
 -------
