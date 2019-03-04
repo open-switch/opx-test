@@ -23,26 +23,29 @@
     failed_when: result.rc == 0
   - debug:
       var: result
-  when: inventory_hostname == "DUT" 
+  when: inventory_hostname == "DUT"
   tags: ['Verify_user_can_add_modify_and_delete_Ipv4_address_to_a_physical_interface','sanity']
   rescue:
-  - name: TC1 - In the rescue section, display result of the task failed 
+  - name: TC1 - In the rescue section, display result of the task failed
     debug:
       var: result
     ignore_errors: yes
   - name: TC1 - Debug Commands for TC1 for failure analysis 
-    command: bash -c "ip addr show {{test_int1}}; opx-show-route"  
+    command: bash -c "ip addr show {{test_int1}}; opx-show-route"
     register: result
   - debug:
       var: result
-  when: inventory_hostname == "DUT" 
+  - name: TC1 - Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  when: inventory_hostname == "DUT"
   always:
   - name: TC1 - Start Cleanup
     command: bash -c "echo 'Start Cleanup for TC1'"
   - name: Bring down interface on DUT
     command: bash -c "ip link set {{test_int1}} down"
     ignore_errors: yes
-  when: inventory_hostname == "DUT" 
+  when: inventory_hostname == "DUT"
 
 
 - block:
@@ -52,20 +55,20 @@
   - name: TC2 - Setup (To fanout a port on DUT)
     import_tasks: setup.yml 
   - name: TC2 - Check the fanned out port exists
-    command: bash -c "ip link show {{server_int}}" 
+    command: bash -c "ip link show {{server_int}}"
     register: result
     failed_when: "'does not exist' in result.stderr"
   - name: TC2 - Configure ipv4_address to a fanout interface on DUT
-    command: bash -c "ip addr add {{IPAddr1}}/{{prefixlen}} dev {{server_int}}" 
+    command: bash -c "ip addr add {{IPAddr1}}/{{prefixlen}} dev {{server_int}}"
     register: result
     ignore_errors: yes
-  - name: TC2 - Using opx-show-route on DUT to check the route present
+  - name: TC2 - Using opx-show-route on DUT to check the route present in NAS
     command: bash -c "opx-show-route | grep {{route0}}"
     register: result
   - name: TC2 - Unconfigure ipv4_address to a fanout interface on DUT
     command: bash -c "ip addr flush dev {{server_int}}"
     register: result
-  - name: TC2 - Using opx-show-route on DUT to check the route absent
+  - name: TC2 - Using opx-show-route on DUT to check the route absent in NAS
     command: bash -c "opx-show-route | grep {{route0}}"
     register: result
     failed_when: result.rc == 0
@@ -85,6 +88,9 @@
     register: result
   - debug:
       var: result
+  - name: TC2 - Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
   when: inventory_hostname == "DUT" 
   always:
   - name: TC2 - Start Cleanup
@@ -95,14 +101,14 @@
     command: bash -c "{{fanoutcmd}} --port {{server_int}} --mode 1x1 --speed {{speed}}"
     register: result
     ignore_errors: yes
-  when: inventory_hostname == "DUT" 
+  when: inventory_hostname == "DUT"
 
 
 - block:
   - name: TC3 - Verify user can add modify and delete ipv4 address to a lag interface
     shell: echo "*****Verify user can add modify and delete ipv4 address to a lag interface*****"
   - name: TC3- Setup (Bring the ports up on DUT and TR)
-    import_tasks: setup.yml  
+    import_tasks: setup.yml
   - name: TC3 - Create bond interface, Add members to LAG on DUT
     command: bash -c "opx-config-lag create --name {{bond_interface}} --unblockedports {{test_int1}},{{test_int2}}; ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; opx-config-lag set --name {{bond_interface}} --enable"
     register: result
@@ -138,14 +144,14 @@
     register: result
   - name: TC3 - Unconfigure ipv4_address to a lag interface on DUT
     command: bash -c "ip addr flush  dev {{bond_interface}}"
-  - name: TC3 - Use opx-show-route on DUT to check the route absent 
+  - name: TC3 - Use opx-show-route on DUT to check the route absent
     command: bash -c "opx-show-route | grep {{route1}}" 
     register: result
     failed_when: result.rc == 0
   - name: TC3 - Check opx-show-route output 
     debug:
       var: result
-  when: inventory_hostname == "DUT" 
+  when: inventory_hostname == "DUT"
   tags: ['Verify user can add modify and delete ipv4 address to a lag interface','sanity']
   rescue:
   - name: TC3 - In rescue section, display result of the task failed
@@ -156,6 +162,9 @@
     command: bash -c "ls /sys/class/net/"
     register: result  
     ignore_errors: yes
+  - name: TC3 - Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
   when: inventory_hostname == "DUT" 
   always:
   - name: TC3 - Start Cleanup
@@ -164,7 +173,7 @@
     command: bash -c "ip link set {{item}} nomaster"
     with_items:
         - "{{test_int1}}"
-        - "{{test_int2}}"  
+        - "{{test_int2}}"
     ignore_errors: yes
   - name: TC3 - Check if any bond exists
     stat:
@@ -183,12 +192,12 @@
   - name: TC5 - Verify user can add modify and delete ipv4 address to a vlan_interface
     shell: echo "*****Verify user can add modify and delete ipv4 address to a vlan_interface*****"
   - name: TC5- Setup (Bring the ports up on DUT,TR and install bridge utils)
-    import_tasks: setup.yml  
+    import_tasks: setup.yml
   - command: bash -c "ip link show dev {{item}} | grep UP"
     register: result
     with_items:
-        - "{{test_int1}}"       
-        - "{{test_int2}}"       
+        - "{{test_int1}}"
+        - "{{test_int2}}"
   - debug:
       var: result
   - name: TC5 - Create bridge, Confgure vlan with tagged port 1 and 2 on DUT
@@ -196,11 +205,15 @@
     register: result
   - debug:
       var: result
+  - name: TC5 - Check if vlan exists in kernel
+    command: bash -c "brctl show | grep {{vlanid}}"
+    register: result
+    when: (inventory_hostname == "DUT")    
   - name: TC5 - Configure ipv4_address to bridge 
     command: bash -c "ip addr add {{IPAddr1}}/{{prefixlen}} dev {{bridge}}"
-    register: 
+    register: result
     when: (inventory_hostname == "DUT")    
-  - name: TC5 - Use opx-show-route on DUT to check the route exists
+  - name: TC5 - Use opx-show-route on DUT to check the route exists in NAS
     command: bash -c "opx-show-route | grep {{route0}}"
     register: result
   - name: TC5 - Unconfigure ipv4_address to a bridge on DUT
@@ -216,11 +229,14 @@
     debug:
       var: result
   - name: TC5 - Debug Commands for TC5 for failure analysis 
-    command: bash -c "ip addr show ; brctl show br{{vlanid}};"
+    command: bash -c "ip addr show; brctl show"
     register: result
-  when: inventory_hostname == "DUT" 
+  - name: TC5 - Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed 
+  when: inventory_hostname == "DUT"
   always:
-  - name: TC5 - set bridge state down, remove menber to vlan, delete bridge
+  - name: TC5 - set bridge state down, remove member to vlan, delete bridge
     command: bash -c "ip link set dev {{bridge}} down; opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan delete --id {{vlanid}}" 
     register: result   
     ignore_errors: yes
@@ -228,8 +244,8 @@
       var: result
   - name: TC5 - Verify bridge does not exist
     command: bash -c "opx-show-vlan --id {{vlanid}}"
-    register: result  
-    ignore_errors: yes 
+    register: result
+    ignore_errors: yes
   - debug:
       var: result
   - name: TC5 - Check if the VLAN information exists
@@ -293,6 +309,9 @@
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - debug:
       var: result
+  - name: TC6 - Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
   always:
   - name: TC6 - Flush ips from interfaces 
     command: bash -c "ip link set dev {{test_int1}} down | ip addr flush dev {{test_int1}}"
@@ -303,7 +322,7 @@
   - name: TC7 - Verify_arp_got_resolved_and_ping_works_on_fanout_interface
     shell: echo "*****Verify arp_got_resolved_and_ping_works_on_fanout_interface*****"
   - name: TC7- Setup (Bring the ports up on DUT,TR,Server )
-    import_tasks: setup.yml  
+    import_tasks: setup.yml
   - name: TC7 - Check ports are up on DUT and TR
     command: bash -c "ip link show dev {{item}} | grep UP"
     register: result
@@ -371,6 +390,9 @@
     debug:
       var: debug_TC7
     ignore_errors: yes
+  - name: TC7 - Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
   always:
   - name: Check ips flushed from interfaces on DUT and TR
     command: bash -c "ip link set dev {{server_int}} down | ip addr flush dev {{server_int}}"
@@ -444,6 +466,9 @@
   - name: TC8 - Debug Commands for TC1 for failure analysis 
     command: bash -c "ifconfig -a; ip addr show"
     register: debug_TC8
+  - name: TC8 - Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
   always:
   - name: TC8 - Delete port from bond interface
     command: bash -c "ip link set {{item}} nomaster"
@@ -503,6 +528,9 @@
   - name: TC9 - Debug Commands for TC1 for failure analysis 
     command: bash -c "opx-show-vlan; brctl show; ip addr show {{test_int1}}"
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC9 - Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
   always:
   - name: TC9 - Check if bridge present 
     command: bash -c "brctl show {{bridge}} | if [ $? -eq 0 ]; then echo 'no bridge present'; else 'echo bridge present'; fi" 
@@ -601,7 +629,7 @@
     failed_when: result.rc == 1
   - debug:
       var: result
-  - name: TC10 - Configure static route on Server2 
+  - name: TC10 - Configure static route on Server2
     command:  bash -c "ip route add {{route0}}/{{prefixlen}} via {{IPAddr4}}"
     register: result
     when: inventory_hostname == "Server2"
@@ -610,7 +638,7 @@
       var: result
     when: inventory_hostname == "Server2"
   - name: TC10 -  Show command to check static route present on Server2
-    command: bash -c "ip route | grep {{route0}}" 
+    command: bash -c "ip route | grep {{route0}}"
     register: result
     when: inventory_hostname == "Server2"
   - debug:
@@ -643,12 +671,12 @@
       dest: /tmp/TC1_l3_static_route_{{inventory_hostname}}
       mode: 0755
       flat: yes
-    when: inventory_hostname == "DUT" 
+    when: inventory_hostname == "DUT"
   - name: TC10 - Remove the logs from DUT and TR
     command: bash -c "rm -rf /tmp/TC*"
     register: delete_logs
     when: inventory_hostname == "DUT"
-  - name: Fail here as one of the tasks in block failed
+  - name: TC10 - Fail here as one of the tasks in block failed
     fail:
      msg: One of the task in the block failed
   always:
