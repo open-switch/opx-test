@@ -1,4 +1,3 @@
----
 
 ##### Ansible Playbook for Smoketest on Dell OPX images
 ##### (c) 2017 Dell Technologies
@@ -35,8 +34,7 @@
 
 
 
-- hosts: "{{ dut }}"
-  
+- hosts: 1host
   vars:
     test_int:       e101-001-0
     test_int1:      e101-002-0
@@ -95,7 +93,7 @@
         msg: "{{result_getredis.stdout_lines}}"
     - name: VERIFY - Check if REDIS is running
       assert:
-        that: "'active (running)' in result_getredis.stdout_lines[2]"
+        that: "'active (running)' in result_getredis.stdout"
         msg:  "Expected active (running) status for REDISD."
 
     - name: SEND - systemctl -l status opx-pas
@@ -144,7 +142,6 @@
         become: true
         register: result_pas_getcps
         changed_when: False
-        ignore_errors: yes
       - name: INFO - If PAS not returning any object or keys means PAS service not working. Check debugs below
         debug:
           msg: "{{result_pas_getcps.stdout_lines}}"
@@ -171,7 +168,6 @@
         become: true
         register: result_pas_getcps
         changed_when: False
-        ignore_errors: yes
       - name: INFO - If PAS not returning any object or keys means PAS service not working. Check debugs below
         debug:
           msg: "{{result_pas_getcps.stdout_lines}}"
@@ -219,17 +215,17 @@
         that: "'status=0/SUCCESS' in result_getqos.stdout"
         msg:  "Expected SUCCESS status for QoS INIT SERVICE."
 
-    - name: SEND - Config static route in kernel, ignoring errors if the route was previously configured (ip link set dev {{test_int}} up; ip addr add {{test_route1}}/{{test_prefix}} dev {{test_int}}; sysctl -w net.ipv4.ip_forward=1; ip route add {{test_route2}}/{{test_prefix}} scope global nexthop via {{test_via}}) 
+    - name: SEND - Config static route in kernel, ignoring errors if the route was previously configured (ip link set dev {{test_int}} up; ip addr add {{test_route1}}/{{test_prefix}} dev {{test_int}}; sysctl -w net.ipv4.ip_forward=1; ip route add {{test_route2}}/{{test_prefix}} scope global nexthop via {{test_via}})
       command: bash -c "ip link set dev {{test_int}} up; ip addr add {{test_route1}}/{{test_prefix}} dev {{test_int}}; sysctl -w net.ipv4.ip_forward=1; ip route add {{test_route2}}/{{test_prefix}} scope global nexthop via {{test_via}}"
       become: true
       ignore_errors: yes
       register: result_krouteconfigout
       changed_when: False
-    - name: INFO - Any messages printed during route configuration are shown here 
+    - name: INFO - Any messages printed during route configuration are shown here
       debug:
         msg: "{{result_krouteconfigout.stdout_lines}}"
-    - name: SEND - ip route show {{test_route2}}/{{test_prefix}} 
-      command: ip route show {{test_route2}}/{{test_prefix}} 
+    - name: SEND - ip route show {{test_route2}}/{{test_prefix}}
+      command: ip route show {{test_route2}}/{{test_prefix}}
       register: result_getkroute
       changed_when: False
     - name: INFO - Route in kernel
@@ -248,22 +244,18 @@
         that: "'{{test_route2}}/{{test_prefix}} via {{test_via}} dev {{test_int}}' in result_getkroute.stdout_lines[0]"
         msg:  "'{{test_route2}}/{{test_prefix}} via {{test_via}} dev {{test_int}}' is not set."
 
-    - block: 
+    - block:
       - name: SEND - cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 . A failure here could mean that the command didn't return any result (either bug or misconfig). Errors here are ignored, check the output next.
-        command:  /usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix={{test_route2hex}} base-route/obj/entry/prefix-len={{test_prefix}} base-route/obj/entry/nh-list/ifname={{test_int}} 
+        command:  /usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix={{test_route2hex}} base-route/obj/entry/prefix-len={{test_prefix}} base-route/obj/entry/nh-list/ifname={{test_int}}
         become: true
         register: result_getcps1
         changed_when: False
-        ignore_errors: yes
       - debug:
           var: result_getcps1
-      - name : Sleep
-        pause:
-          seconds: 10
-      - name: INFO - NAS routes (if empty, then configuration was not applied or there is some bug) 
+      - name: INFO - NAS routes (if empty, then configuration was not applied or there is some bug)
         debug:
-          msg: "{{result_getcps1.stdout_lines}}"
-      - name: VERIFY - Check if the route 0x{{test_route2hex}} existse. If result_getcps1.stdout_lines does not have an element, then the error is because the result of the previous command was empty. It could be a bug.
+          msg: "{{result_getcps1}}"
+      - name: VERIFY - Check if the route 0x{{test_route2hex}} exists. If result_getcps1.stdout_lines does not have an element, then the error is because the result of the previous command was empty. It could be a bug.
         assert:
           that: "'base-route/obj/entry/route-prefix = {{test_route2hex}}' in result_getcps1.stdout"
           msg: "Route 0x{{test_route2hex}} not found"
@@ -272,17 +264,16 @@
         command: bash -c "ip route show"
         register: result_debug_cpsfail
         changed_when: False
-      - name: INFO - Debug info collected 
+      - name: INFO - Debug info collected
         debug:
           msg: "{{result_debug_cpsfail}}"
-      - name: FAIL - Test Failed on last VERIFY step. Exit here, after collecting debug data above 
+      - name: FAIL - Test Failed on last VERIFY step. Exit here, after collecting debug data above
         fail:
         when: "{{test_route2hex}} not in result_getcps1.stdout_lines"
 
     - name: SEND -Configure Static route through CPS ADD
-      command: bash -c "ip link set dev {{test_int}} up; /usr/bin/opx-config-route create --dst {{test_route2}} --nh_addr {{test_via}}"
+      command: bash -c "ip link set dev {{test_int}} up; /usr/bin/opx-config-route create --dst {{test_route2}}/{{test_cps_prefix}} --nh_addr {{test_via}}"
       become: true
-      ignore_errors: yes
       register: result_cpsaddroute
       changed_when: False
     - name: INFO - Any messages printed during route configuration are shown here
@@ -300,27 +291,22 @@
       assert:
         that: "'{{test_route2}}' in result_getkroute.stdout"
         msg: "'{{test_route2}}' is not programmed in kernel"
-    - name : Sleep
-      pause:
-        seconds: 10
     - name: SEND -CPS GET from NAS
-      command:  /usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix={{test_route2hex}} base-route/obj/entry/prefix-len={{test_cps_prefix}}
+      command:  /usr/bin/cps_get_oid.py base-route/obj/entry base-route/obj/entry/af=2 base-route/obj/entry/route-prefix={{test_route2hex}} base-route/obj/entry/prefix-len={{test_cps_prefix}} base-route/obj/entry/nh-list/ifname={{test_via}}
       become: true
       register: result_getcps1
       changed_when: False
-      ignore_errors: yes
     - name: INFO - NAS routes (if empty, then configuration was not applied or there is some bug)
       debug:
         msg: "{{result_getcps1.stdout_lines}}"
     - name: VERIFY - Check if the route 0x{{test_route2hex}} exists. If result_getcps1.stdout_lines does not have an element, then the error is because the result of the previous command was empty. It could be a bug.
       assert:
-        that: "'base-route/obj/entry/route-prefix = {{test_route2hex}}' in result_getcps1.stdout_lines"
+        that: "'base-route/obj/entry/route-prefix = {{test_route2hex}}' in result_getcps1.stdout"
         msg: "Route 0x{{test_route2hex}} not found"
-       
+
     - name: SEND -Unconfigure Static route through CPS Delete
-      command: bash -c "/usr/bin/opx-config-route delete --dst {{test_route2}}"
+      command: bash -c "/usr/bin/opx-config-route delete --dst {{test_route2}}/{{test_cps_prefix}}"
       become: true
-      ignore_errors: yes
       register: result_cpsdelroute
       changed_when: False
     - name: INFO - Any messages printed during route configuration are shown here
@@ -352,11 +338,19 @@
         that: "'' in result_getcps1.stdout"
         msg: "Route 0x{{test_route2hex}} is found in NAS. CPS deletion failed"
 
-    - name: SEND -Configure VLAN and add untagged ports using CPS set
-      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/opx-config-vlan create --id {{test_vlan}} --ports {{test_int}},{{test_int1}}"
+    - name: SEND - Unconfig ip address in kernel
+      command: bash -c "sysctl -w net.ipv4.ip_forward=1; ip addr flush dev {{test_int}}; ip addr flush dev {{test_int1}}; ip link set dev {{test_int}} down; ip link set dev {{test_int1}} down"
       become: true
-      ignore_errors: yes
+      register: result_getkrouteunconfig
+    - name: INFO - Issues during kernel route unconfig, if any, will be shown here
+      debug:
+          msg: "{{result_getkrouteunconfig.stdout_lines}}"
+
+    - name: SEND -Configure VLAN and add untagged ports using CPS set
+      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/opx-config-vlan create --id {{test_vlan}} --ports {{test_int}},{{test_int1}} --type data"
+      become: true
       register: result_cpsvlanadd
+      failed_when: result_cpsvlanadd.rc >= 2
       changed_when: False
     - name: INFO - Any messages printed during VLAN configuration are shown here
       debug:
@@ -364,7 +358,6 @@
     - name: Show
       command: bash -c "/usr/bin/opx-show-vlan --id {{test_vlan}}"
       become: true
-      ignore_errors: yes
       register: show_cps
     - name: TC8 - Verify if the VLAN contains the untagged ports {{test_int}} and {{test_int1}} in the CPS data
       assert:
@@ -372,29 +365,26 @@
         msg: CPS is not updated - untagged ports {{test_int}} and {{test_int1}} are not present in the VLAN {{test_vlan}}
 
     - name: SEND -Delete one of the untagged port in vlan {{test_vlan}} using CPS set
-      #command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/cps_config_vlan.py --addport --name br{{test_vlan}} --port {{test_int1}}"
       command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/opx-config-vlan remove --id {{test_vlan}} --ports {{test_int1}}"
       become: true
-      ignore_errors: yes
       register: result_cpsvlanupdate
       changed_when: False
     - name: INFO - Any messages printed during VLAN configuration are shown here
       debug:
         msg: "{{result_cpsvlanupdate.stdout_lines}}"
     - name: SEND -CPS GET from NAS, check if {{test_int1}} removed from vlan id {{test_vlan}}
-      command:  /usr/bin/opx-show-vlan | grep {{test_int1}}
+      command:  /usr/bin/opx-show-vlan
       become: true
-      register: result_getvlancps
-      changed_when: False
-      failed_when: result_getvlancps.rc == 0
-    - name: INFO- Dumping VLAN Entry with the updated untagged ports
-      debug:
-        msg: "{{result_getvlancps.stdout_lines}}"
-
+      register: result_showvlan
+    - debug:
+        var: result_showvlan
+    - name: VERIFY - Check if {{test_int1}} removed from br{{test_vlan}}
+      assert:
+        that: "'{{test_int1}}' not in result_showvlan.stdout"
+        msg:  "Failed to remove {{test_int1}} from VLAN {{test_vlan}}"
     - name: SEND -Delete the vlan {{test_vlan}} using CPS set
-      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; /usr/bin/opx-config-vlan delelte --id {{test_vlan}}"
-      become: true
-      ignore_errors: yes
+      command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; sudo opx-config-vlan set --id {{test_vlan}} --ports none --taggedports none; /usr/bin/opx-config-vlan delete --id {{test_vlan}}"
+#      become: true
       register: result_cpsvlandel
       changed_when: False
     - name: INFO - Any messages printed during VLAN deletion are shown here
@@ -405,7 +395,7 @@
       become: true
       register: result_getvlancps
       changed_when: False
-      ignore_errors: yes
+      ignore_errors: true
     - name: INFO- Dumping VLAN entry using CPS Get
       debug:
         msg: "{{result_getvlancps.stdout_lines}}"
@@ -414,13 +404,6 @@
         that: "'' in result_getvlancps.stdout"
         msg: "VLAN {{test_vlan}} found in NAS"
 
-    - name: SEND - Unconfig ip address in kernel
-      command: bash -c "sysctl -w net.ipv4.ip_forward=1; ip addr flush dev {{test_int}}; ip addr flush dev {{test_int1}}; ip link set dev {{test_int}} down; ip link set dev {{test_int1}} down"
-      become: true
-      register: result_getkrouteunconfig
-    - name: INFO - Issues during kernel route unconfig, if any, will be shown here
-      debug:
-          msg: "{{result_getkrouteunconfig.stdout_lines}}"
     - block:
       - name: SEND - systemctl is-system-running
         command: systemctl is-system-running
@@ -500,9 +483,10 @@
 #          msg:  "Error when executing command."
 
 
+
     - block:
-      - name: SEND - opx-show-transceivers all
-        command: /usr/bin/opx-show-transceivers all 
+      - name: SEND - opx-show-transceiver
+        command: /usr/bin/opx-show-transceiver
         become: true
         register: result_gettransceivers
         changed_when: False
@@ -511,18 +495,17 @@
           msg: "{{result_gettransceivers.stdout_lines}}"
       - name: VERIFY - Show transceivers command is working [SmokeTest_Show_Transceivers] 
         assert:
-          that: "'base-pas/media' in result_gettransceivers.stdout"
+          that: "'Present:            yes' in result_gettransceivers.stdout"
           msg:  "Error when executing command."
-
 
 #-----------------------------------------------------------------------------------------
 - hosts: localhost # This is not part of the test, just print the timestamp as a reference
   tasks:
-    - name: INFO - Test END 
+    - name: INFO - Test END
       debug:
         msg: 
           - "Started: {{ test_started }}"
           - "Ended:   {{ ansible_date_time.date}} {{ ansible_date_time.time}}"
 #-----------------------------------------------------------------------------------------
 
-...
+
