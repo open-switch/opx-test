@@ -385,7 +385,7 @@
         msg:  "Failed to remove {{test_int1}} from VLAN {{test_vlan}}"
     - name: SEND -Delete the vlan {{test_vlan}} using CPS set
       command: bash -c "ip link set dev {{test_int}} up; ip link set dev {{test_int1}} up; sudo opx-config-vlan set --id {{test_vlan}} --ports none --taggedports none; /usr/bin/opx-config-vlan delete --id {{test_vlan}}"
-#      become: true
+      become: true
       register: result_cpsvlandel
       changed_when: False
     - name: INFO - Any messages printed during VLAN deletion are shown here
@@ -445,7 +445,6 @@
       register: result_systemctl_failed_units
       changed_when: False
 
-
     - name: SEND - systemctl --all --state=failed list-units
       command: systemctl --all --state=failed list-units
       become: true
@@ -458,7 +457,6 @@
       assert: 
         that: "'0 loaded units listed.' == result_getservicesfailstat.stdout_lines[0]"
         msg:  "One or more units failed."
-
 
     - name: VERIFY - Check if  Aptlist Installed command execution is successfull (apt list --installed) [SmokeTest_Aptlist_Installed]
       command: apt list --installed 
@@ -482,7 +480,6 @@
 #        assert:
 #          that: "'Temperature sensors' in result_getenv.stdout"
 #          msg:  "Error when executing command."
-
 
 
     - block:
