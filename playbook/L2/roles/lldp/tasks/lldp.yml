@@ -1,0 +1,167 @@
+#Verifies LLDP Service before and after the event and check the LLDP functionality by checking the keywords like 'chassisid, sysname,sysdescr,mgmtip,portid,portdescr'.
+---
+- block:
+  - name: TC1 - Verify LLDP Service before and after the event and check the LLDP functionality by checking the keywords like chassisid, sysname,sysdescr,mgmtip,portid,portdescr
+    shell: echo "*****TC1 Verify LLDP Service before and after the event and check the LLDP functionality by checking the keywords like 'chassisid, sysname,sysdescr,mgmtip,portid,portdescr'*****"
+    register: TC1-LLDP
+  - name: TC1 - Verify lldpd service is running on device DUT before test_int1 flapping, expected status is running
+    command: bash -c "service lldpd status |  grep 'active'| grep 'running' "
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - name: TC1 - Making interface on DUT
+    command: bash -c "ifconfig {{test_int1}} up"
+    register: status
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - STDOUT the command to check the port is up on DUT
+    command: bash -c "ip link show {{item}} | grep UP"
+    with_items:
+        - "{{test_int1}}"
+    register: status
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - debug:
+      var: status
+    when: (inventory_hostname == "DUT")
+  - name: TC1 - Interface flapping on DUT
+    command: bash -c "ifconfig {{test_int1}} down; ifconfig {{test_int1}} up"
+    register: status
+    when: (inventory_hostname == "DUT")
+  - name: TC1 - Verify LLDP service running after {{test_int1}} flapping on DUT
+    command: bash -c "service lldpd status | grep 'active'| grep 'running'"
+    register: status
+    #grep command returns error code=2 for exceptions and error code=1 if the given string was not found
+    failed_when: "status.rc >= 1"
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+
+#Check for ChassisID attribute
+  - name: TC2 - Bring {{test_int1}} up on DUT and TR
+    command: bash -c "ifconfig {{test_int1}} up; ifconfig {{test_int1}} | grep UP"
+    register: status
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - debug:
+      var: status
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Verify LLDP functionality for {{test_int1}} on device DUT and checking for keyword ChassisID before test_int1 flapping 
+    command: bash -c "ip link show {{test_int1}}; lldpcli show neighbors ports {{test_int1}} |  grep ChassisID "
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - name: TC2 - Doing test_int1 flapping on device DUT1 for test_int1 DUT1_TR1_1
+    command: bash -c "ifconfig {{test_int1}} down; ifconfig {{test_int1}} up"
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - name: TC2 - Verify LLDP functionality for {{test_int1}} on device DUT1 and checking for keyword ChassisID after test_int1 flapping
+    command: bash -c "ip link show {{test_int1}}; lldpcli show neighbors ports {{test_int1}} | grep ChassisID "
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+
+#Check for SysName attribute
+  - name: TC3 - Verify LLDP functionality for test_int1 on device DUT1 and checking for keyword SysName before test_int1 flapping
+    command: bash -c "ip link show {{test_int1}}; lldpcli show neighbors ports {{test_int1}} |  grep SysName "
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - debug:
+      var: status
+    when: (inventory_hostname == "DUT")
+  - name: TC3 - Doing {{test_int1}} flapping on device DUT1 for test_int1 DUT1_TR1_1
+    command: bash -c "ifconfig {{test_int1}} down; ifconfig {{test_int1}} up"
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - name: TC3 - Verify LLDP functionality for DUT_TR on device DUT and checking for keyword Sysname after {{test_int1}} flapping
+    command: bash -c "lldpcli show neighbors ports {{test_int1}} |  grep SysName "
+    register: status
+    changed_when: false
+
+#Check for SysDescr attribute
+    when: (inventory_hostname == "DUT")
+  - name: TC4 - Verify LLDP functionality for test_int1 DUT1_TR1_1 on device DUT1 and checking for keyword SysDescr before  test_int1 flapping 
+    command: bash -c "lldpcli show neighbors ports {{test_int1}} |  grep SysDescr "
+    register: status
+    changed_when: false
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT")
+  - name: TC4 - Doing test_int1 flapping on device DUT1 for test_int1 DUT1_TR1_1
+    command: bash -c "ifconfig {{test_int1}} down; ifconfig {{test_int1}} up"
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - name: TC4 - Verify LLDP functionality for test_int1 DUT1_TR1_1 on device DUT1 and checking for keyword SysDescr after test_int1 flapping 
+    command: bash -c "ip link show {{test_int1}}; lldpcli show neighbors ports {{test_int1}} |  grep SysDescr "
+    register: status
+    changed_when: false
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT")
+
+#Check for MgmtIP attribute
+  - name: TC5 - Verify LLDP functionality for test_int1 DUT1_TR1_1 on device DUT1 and checking for keyword MgmtIP before  test_int1 flapping 
+    command: bash -c "ip link show {{test_int1}}; lldpcli show neighbors ports {{test_int1}} |  grep MgmtIP "
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - name: TC5 - Doing test_int1 flapping on device DUT1 for test_int1 DUT1_TR1_1
+    command: bash -c "ifconfig {{test_int1}} down; ifconfig {{test_int1}} up"
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - name: TC5 - Verify LLDP functionality for test_int1 DUT1_TR1_1 on device DUT1 and checking for keyword MgmtIP  after test_int1 flapping
+    command: bash -c "ip link show {{test_int1}}; lldpcli show neighbors ports {{test_int1}} |  awk 'FNR==5' "
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+
+#Check for PortID attribute
+  - name: TC6 - Verify LLDP functionality for test_int1 DUT1_TR1_1 on device DUT1 and checking for keyword PortID before  test_int1 flapping
+    command: bash -c "ip link show {{test_int1}}; lldpcli show neighbors ports {{test_int1}} |  grep PortID "
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - name: TC6 - Doing test_int1 flapping on device DUT1 for test_int1 DUT1_TR1_1
+    command: bash -c "ifconfig {{test_int1}} down; ifconfig {{test_int1}} up"
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - name: TC6 - Verify LLDP functionality for test_int1 DUT1_TR1_1 on device DUT1 and checking for keyword PortID after test_int1 flapping 
+    command: bash -c "ip link show {{test_int1}}; lldpcli show neighbors ports {{test_int1}} |  grep PortID "
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+
+#Check for PortDescr attribute
+  - name: TC7 - Verify LLDP functionality for test_int1 DUT1_TR1_1 on device DUT1 and checking for keyword PortDescr before  test_int1 flapping
+    command: bash -c "ip link show {{test_int1}}; lldpcli show neighbors ports {{test_int1}} |  grep PortDescr "
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - name: TC7 - Doing test_int1 flapping on device DUT1 for test_int1 DUT1_TR1_1
+    command: bash -c "ifconfig {{test_int1}} down; ifconfig {{test_int1}} up"
+    register: status
+    changed_when: false
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT")
+  - name: TC7 - Verify LLDP functionality for test_int1 DUT1_TR1_1 on device DUT1 and checking for keyword PortDescr after test_int1 flapping
+    command: bash -c "ip link show {{test_int1}}; lldpcli show neighbors ports {{test_int1}} |  grep PortDescr "
+    register: status
+    changed_when: false
+    when: (inventory_hostname == "DUT")
+  - name: Print result 
+    debug:
+      msg: "LLDP service testing COMPLETE: {{ status.stdout }}"
+    when: (inventory_hostname == "DUT")
+  tags: ['Test LLDP service','full']
+  rescue:
+  - name: LLDP test failed
+    debug:
+      msg: "LLDP service testing FAILED"
+  - name: Debug commands  
+    command: bash -c "ifconfig {{test_int1}} up; lldpcli show neighbors ports {{test_int1}}"
+    register: status
+  always:
+  - name: Bring down the test_int1 on DUT1
+    command: bash -c "ip link set dev {{test_int1}} down"
+    register: ip_status
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
