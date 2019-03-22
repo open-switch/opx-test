@@ -41,7 +41,7 @@
     with_items:
         - "{{test_int1}}"
         - "{{test_int2}}"
-  when: inventory_hostname in groups['testhost']
+  when: inventory_hostname in groups['1host']
 
 - block:
   - name: STDOUT the command to check the ports are up on DUT
@@ -56,4 +56,4 @@
         - "'state UP' in verify_status.results[0].stdout"
         - "'state UP' in verify_status.results[1].stdout"
       msg: "Interfaces are not up"
-  when: inventory_hostname in groups['testhost']
+  when: inventory_hostname in groups['1host']
