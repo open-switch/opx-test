@@ -7,9 +7,8 @@
     when: (inventory_hostname == "DUT")
   - name: GET - The port status
     command: bash -c "ifconfig {{vrf_port1}}; ifconfig {{vrf_port1}}"
-    changed_when: false
     register: port_details
-    when: (inventory_hostname == "DUT")
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: stdout the command output
     debug:
       msg: "{{port_details.stdout}}"
