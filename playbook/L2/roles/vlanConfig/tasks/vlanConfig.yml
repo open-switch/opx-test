@@ -226,9 +226,7 @@
       msg: "A new VLAN without existing VLAN id could be created"
   - name: Pause for 2 seconds for the next TC to start
     pause:
-
-  when: (inventory_hostname == "DUT")
-  tags: ['Verify_VLAN_Configurations','sanity']
+      seconds: 2
 
 
   rescue:
@@ -251,7 +249,6 @@
     fail:
        msg: One of the task in the block failed
 
-  when: (inventory_hostname == "DUT")
 
   always:
   - name: TC10 - Verify if the VLAN could be deleted
@@ -277,3 +274,4 @@
       msg: "br{{vlanid}} still present in the NPU"
 
   when: (inventory_hostname == "DUT")
+  tags: ['Verify_VLAN_Configurations','sanity']
