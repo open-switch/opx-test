@@ -504,7 +504,7 @@
       msg: "br{{vlanid}} still present in the output"
     when: inventory_hostname == "DUT"
   - name: TC2 - Clean up the bridge members on DUT and TR
-    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none"
+    command: bash -c "opx-config-vlan set --id {{interVLAN}} --ports none --taggedports none"
     register: clean_up_bridge_ports
     ignore_errors: yes
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
