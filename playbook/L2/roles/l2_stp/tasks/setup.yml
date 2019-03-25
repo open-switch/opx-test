@@ -42,9 +42,11 @@
   - name: Fanout the ports connected to server
     command: bash -c "{{fanoutcmd}} --port {{fanoutport}} --mode {{splitport}} --speed {{speed}}"
     register: fanout
-    when: (inventory_hostname in groups['2host'][0]) or (inventory_hostname in groups['2host'][1])
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR") 
   - name: Check fanout port exists
-    command: bash -c "ifconfig {{server_int}}"
+    command: bash -c "ip link show {{server_int}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: Bring up the front end ports connected to DUT,TR and Server
     command: bash -c "ip link set dev {{item}} up"
     with_items:

@@ -526,12 +526,12 @@
     command: bash -c "ifconfig br{{vlanid}} down; brctl delbr br{{vlanid}}; ip link del {{server_link}}.{{vlanid}}"
     register: clean_up_bridge_server
     when: inventory_hostname == "Server1"
-  - name: TC1 - STDOUT the ifconfig command to check br{{vlanid}} exists
+  - name: TC2 - STDOUT the ifconfig command to check br{{vlanid}} exists
     command: bash -c "ifconfig br{{vlanid}}"
     register: check_bridge_config_server
     ignore_errors: yes
     when: inventory_hostname == "Server1"
-  - name: TC1 - Verify the output of the command whether br{{vlanid}} exists
+  - name: TC2 - Verify the output of the command whether br{{vlanid}} exists
     assert:
       that: "'Device not found' in check_bridge_config_server.stderr"
       msg: "br{{vlanid}} still present in the output"

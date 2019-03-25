@@ -1,37 +1,45 @@
 ---
 
 - block:
+  - name: TC1 - Bring up the port that needs to be added to the VRF
+    import_tasks: setup.yml
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC1 - Create VRF
     command: bash -c "{{vrf_config_cmd}} create --name {{vrf_name}}"
     changed_when: false
     register: create_vrf
+    when: (inventory_hostname == "DUT")
   - name: stdout the command output
     debug:
       msg: "{{create_vrf.stdout}}"
+    when: (inventory_hostname == "DUT")
   - name: GET - VRF name from namespace
     command: ip netns
     changed_when: false
     register: ipnetns_configvrf
+    when: (inventory_hostname == "DUT")
   - name: stdout the command output
     debug:
       msg: "{{ipnetns_configvrf.stdout}}"
+    when: (inventory_hostname == "DUT")
   - name: Verify the configured VRF in namespace
     assert:
       that: "'{{vrf_name}}' in ipnetns_configvrf.stdout"
       msg: VRF not present in namespace
+    when: (inventory_hostname == "DUT")
   tags: ['verify_vrf_creation','full','sanity']
   rescue:
   - name: TC1 - Debug commands for the failed test case
     command: bash -c "opx-show-vrf"
     register: debug_TC1
+    when: (inventory_hostname == "DUT")
   - name: Fail here as one of the tasks in block failed
     fail:
      msg: One of the task in the block failed
+    when: (inventory_hostname == "DUT")
 
 
 - block:
-  - name: TC2 - Bring up the port that needs to be added to the VRF
-    import_tasks: setup.yml
   - name: TC2 - Add port to the configured VRF
     command: bash -c "{{vrf_config_cmd}} add --name {{vrf_name}} --ports {{vrf_port1}}"
     changed_when: false
@@ -58,6 +66,7 @@
   - name: Fail here as one of the tasks in block failed
     fail:
      msg: One of the task in the block failed
+  when: (inventory_hostname == "DUT")
 
 
 - block:
@@ -75,6 +84,7 @@
     assert:
       that: "'{{ip_address1}}' in ip_config_dut.stdout"
       msg: "IP address configuration on the DUT failed"
+  tags: ['verify_configuring_ip_to_port_in_vrf','full','sanity']
   rescue:
   - name: TC3 - Debug commands for the failed test case
     command: bash -c "opx-show-vrf; ip route show; opx-show-route; ip netns exec {{vrf_name}} ip link show"
@@ -82,6 +92,8 @@
   - name: Fail here as one of the tasks in block failed
     fail:
      msg: One of the task in the block failed
+  when: (inventory_hostname == "DUT")
+
 
 - block:
   - name: TC4 - Configure and delete the static route in VRF on DUT
@@ -106,6 +118,7 @@
     assert:
       that: "'{{vrf_network_prefix}}' not in dut_route_table.stdout"
       msg: Configured route entry  present in the default route table
+  tags: ['verify_adding_and_deleting_static_route_in_vrf','full','sanity']
   rescue:
   - name: TC4 - Debug commands for the failed test case
     command: bash -c "ifconfig -a; opx-show-route; {{vrf_config_cmd}} --show; ip netns exec {{vrf_name}} ip link show; ip netns exec {{vrf_name}} ip route show"
@@ -113,6 +126,7 @@
   - name: Fail here as one of the tasks in block failed
     fail:
      msg: One of the task in the block failed
+  when: (inventory_hostname == "DUT")
 
 
 - block:
@@ -142,6 +156,7 @@
   - name: Fail here as one of the tasks in block failed
     fail:
      msg: One of the task in the block failed
+  when: (inventory_hostname == "DUT")
 
 
 - block:
@@ -170,6 +185,7 @@
   - name: Fail here as one of the tasks in block failed
     fail:
      msg: One of the task in the block failed
+  when: (inventory_hostname == "DUT")
 
 
 # Test VRF static route leaking
@@ -214,3 +230,4 @@
   - name: TC7 - Remove ports from VRF and delete VRF
     command: bash -c "opx-config-vrf remove --name {{vrf_name}} --ports {{vrf_port1}};opx-config-vrf remove --name {{vrf_name2}} --ports {{vrf_port2}}; opx-config-vrf delete --name {{vrf_name}};opx-config-vrf delete --name {{vrf_name2}}"
     register: delete_vrf
+  when: (inventory_hostname == "DUT")
