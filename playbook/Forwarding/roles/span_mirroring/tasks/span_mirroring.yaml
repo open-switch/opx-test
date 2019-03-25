@@ -6,30 +6,23 @@
     register: TC1
   - name: TC1 - Setup (Bring the switches with the fanout, bring ports up on DUT,TR and Server)
     import_tasks: setup.yml
-  - name: TC1 - Convert IP address {{IPAddr1}} to hexadecimal to configure on {{server_int}} on DUT using CPS
-    command: bash -c "export IPAddress='{{IPAddr1}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
-    register: convert_ip_address_hex
-    when: inventory_hostname == "DUT"
-  - name: TC1 - STDOUT the hexadecimal value of IP Address
-    debug:
-      msg: "{{convert_ip_address_hex.stdout_lines}}"
-    when: inventory_hostname == "DUT"
   - name: TC1 - Set the interface IP address on {{server_int}} link on DUT
-    command: bash -c "cps_set_oid.py -qua target -oper create base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name={{server_int}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    command: bash -c "opx-config-route create --vrf_name default --ifname {{server_int}} --ip_addr {{IPAddr1}}/{{prefixlen}}"
     register: configure_ip_address
     when: inventory_hostname == "DUT"
   - name: TC1 - STDOUT the output of CPS set command to configure IP address
     debug:
       msg: "{{configure_ip_address.stdout_lines}}"
     when: inventory_hostname == "DUT"
-  - name: TC1 - Verify whether the CPS set of configuring IP address is success
+  - name: TC1 - Verify whether the OPX set of configuring IP address is success
     assert:
       that: "'Success' in configure_ip_address.stdout"
-      msg: "CPS set configuration of IP address failed"
+      msg: "OPX set configuration of IP address failed"
     when: inventory_hostname == "DUT"
   - name: TC1 - Configure IP address on the server1 connected to DUT
-    command: bash -c "ip addr add {{IPAddr2}}/{{prefixlen}} dev {{server_link}}"
+    command: bash -c "ip addr flush {{server_link}}; ip addr add {{IPAddr2}}/{{prefixlen}} dev {{server_link}}"
     register: configure_ip_address_server
+    ignore_errors: true
     when: inventory_hostname == "Server1"
   - name: TC1 - Verify whether the IP address configured on the interface
     command: bash -c "ip addr show {{server_link}} | grep inet"
@@ -49,35 +42,27 @@
       msg: "{{convert_ip_address_hex.stdout_lines}}"
     when: inventory_hostname == "DUT"
   - name: TC1 - Set the interface IP address on {{test_int1}} link on DUT
-    command: bash -c "cps_set_oid.py -qua target -oper create base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name={{test_int1}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    command: bash -c "opx-config-route create --ifname {{test_int1}} --ip_addr {{IPAddr3}}/{{prefixlen}}"
     register: configure_ip_address
     when: inventory_hostname == "DUT"
-  - name: TC1 - STDOUT the output of CPS set command to configure IP address
+  - name: TC1 - STDOUT the output of OPX set command to configure IP address
     debug:
       msg: "{{configure_ip_address.stdout_lines}}"
     when: inventory_hostname == "DUT"
-  - name: TC1 - Verify whether the CPS set of configuring IP address is success
+  - name: TC1 - Verify whether the OPX set of configuring IP address is success
     assert:
       that: "'Success' in configure_ip_address.stdout"
-      msg: "CPS set configuration of IP address failed"
+      msg: "OPX set configuration of IP address failed on {{test_int1}}"
     when: inventory_hostname == "DUT"
-  - name: TC1 - Convert IP address {{IPAddr4}} to hexadecimal to configure on {{test_int1}} on TR using CPS
-    command: bash -c "export IPAddress='{{IPAddr4}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
-    register: convert_ip_address_hex
-    when: inventory_hostname == "TR"
-  - name: TC1 - STDOUT the hexadecimal value of IP Address
-    debug:
-      msg: "{{convert_ip_address_hex.stdout_lines}}"
-    when: inventory_hostname == "TR"
   - name: TC1 - Set the interface IP address on {{test_int1}} link on TR
-    command: bash -c "cps_set_oid.py -qua target -oper create base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name={{test_int1}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    command: bash -c "opx-config-route create --ifname {{test_int1}} --ip_addr {{IPAddr4}}/{{prefixlen}}"
     register: configure_ip_address
     when: inventory_hostname == "TR"
-  - name: TC1 - STDOUT the output of CPS set command to configure IP address
+  - name: TC1 - STDOUT the output of OPX set command to configure IP address
     debug:
       msg: "{{configure_ip_address.stdout_lines}}"
     when: inventory_hostname == "TR"
-  - name: TC1 - Verify whether the CPS set of configuring IP address is success
+  - name: TC1 - Verify whether the OPX set of configuring IP address is success
     assert:
       that: "'Success' in configure_ip_address.stdout"
       msg: "CPS set configuration of IP address failed"
@@ -265,16 +250,8 @@
       that: "'{{IPAddr2}}/{{prefixlen}}' not in verify_ip_address_server.stdout"
       msg: "IP Address is not programmed"
     when: inventory_hostname == "Server1"
-  - name: TC1 - Convert IP address {{IPAddr3}} to hexadecimal to delete the IP on {{test_int1}} on DUT using CPS
-    command: bash -c "export IPAddress='{{IPAddr3}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
-    register: convert_ip_address_hex
-    when: inventory_hostname == "DUT"
-  - name: TC1 - STDOUT the hexadecimal value of IP Address
-    debug:
-      msg: "{{convert_ip_address_hex.stdout_lines}}"
-    when: inventory_hostname == "DUT"
   - name: TC1 - Delete the interface IP address on {{test_int1}} link on DUT
-    command: bash -c "cps_set_oid.py -qua target -oper delete base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name={{test_int1}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    command: bash -c "opx-config-route delete --vrf_name default --ifname {{test_int1}} --ip_addr {{IPAddr3}}/{{prefixlen}}"
     register: delete_ip_address
     when: inventory_hostname == "DUT"
   - name: TC1 - STDOUT the output of CPS set command to delete IP address
@@ -286,16 +263,8 @@
       that: "'Success' in delete_ip_address.stdout"
       msg: "CPS delete configuration of IP address failed"
     when: inventory_hostname == "DUT"
-  - name: TC1 - Convert IP address {{IPAddr4}} to hexadecimal to delete the IP on {{test_int1}} on TR using CPS
-    command: bash -c "export IPAddress='{{IPAddr4}}'; printf  '%02X' ${IPAddress//./ } | awk '{print tolower($0)}'"
-    register: convert_ip_address_hex
-    when: inventory_hostname == "TR"
-  - name: TC1 - STDOUT the hexadecimal value of IP Address
-    debug:
-      msg: "{{convert_ip_address_hex.stdout_lines}}"
-    when: inventory_hostname == "TR"
   - name: TC1 - Delete the interface IP address on {{test_int1}} link on TR
-    command: bash -c "cps_set_oid.py -qua target -oper delete base-ip/ipv4/address  base-ip/ipv4/vrf-id=0 base-ip/ipv4/name={{test_int1}} base-ip/ipv4/address/prefix-length={{prefixlen}} base-ip/ipv4/address/ip={{convert_ip_address_hex.stdout_lines[0]}}"
+    command: bash -c "opx-config-route delete --vrf_name default --ifname {{test_int1}} --ip_addr {{IPAddr4}}/{{prefixlen}}"
     register: delete_ip_address
     when: inventory_hostname == "TR"
   - name: TC1 - STDOUT the output of CPS set command to delete IP address
