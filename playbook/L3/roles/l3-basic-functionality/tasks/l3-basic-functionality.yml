@@ -23,7 +23,6 @@
     failed_when: result.rc == 0
   - debug:
       var: result
-  when: inventory_hostname == "DUT"
   tags: ['Verify_user_can_add_modify_and_delete_Ipv4_address_to_a_physical_interface','sanity']
   rescue:
   - name: TC1 - In the rescue section, display result of the task failed
@@ -38,7 +37,6 @@
   - name: TC1 - Fail here as one of the tasks in block failed
     fail:
      msg: One of the task in the block failed
-  when: inventory_hostname == "DUT"
   always:
   - name: TC1 - Start Cleanup
     command: bash -c "echo 'Start Cleanup for TC1'"
@@ -76,7 +74,6 @@
     debug:
       var: result
       verbosity: 1
-  when: inventory_hostname == "DUT" 
   tags: ['Verify l3 basic functioanlity configure ip on fanout port','sanity']
   rescue:
   - name: TC2 - In rescue section, display result of the task failed
@@ -91,7 +88,6 @@
   - name: TC2 - Fail here as one of the tasks in block failed
     fail:
      msg: One of the task in the block failed
-  when: inventory_hostname == "DUT" 
   always:
   - name: TC2 - Start Cleanup
     command: bash -c "echo 'Start Cleanup for TC2'"
@@ -151,7 +147,6 @@
   - name: TC3 - Check opx-show-route output 
     debug:
       var: result
-  when: inventory_hostname == "DUT"
   tags: ['Verify user can add modify and delete ipv4 address to a lag interface','sanity']
   rescue:
   - name: TC3 - In rescue section, display result of the task failed
@@ -165,7 +160,6 @@
   - name: TC3 - Fail here as one of the tasks in block failed
     fail:
      msg: One of the task in the block failed
-  when: inventory_hostname == "DUT" 
   always:
   - name: TC3 - Start Cleanup
     command: bash -c "echo 'Start Cleanup for TC3'"
@@ -222,7 +216,6 @@
     command: bash -c "opx-show-route | grep {{route0}}"
     register: result
     failed_when: result.rc == 0   
-  when: inventory_hostname == "DUT" 
   tags: ['Verify user can add modify and delete ipv4 address to a vlan_interface','sanity']
   rescue:
   - name: TC5 - In rescue section, display result variable
@@ -234,7 +227,6 @@
   - name: TC5 - Fail here as one of the tasks in block failed
     fail:
      msg: One of the task in the block failed 
-  when: inventory_hostname == "DUT"
   always:
   - name: TC5 - set bridge state down, remove member to vlan, delete bridge
     command: bash -c "ip link set dev {{bridge}} down; opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan delete --id {{vlanid}}" 
@@ -265,6 +257,7 @@
       - "{{test_int2}}"
     register: result
   when: inventory_hostname == "DUT" 
+
 
 - block:
   - name: TC6 - Verify_arp_get_resolved_and_ping_works_on_physical_interface
@@ -414,6 +407,7 @@
   - name: TC7 - Check Flush ips output
     debug:
       var: result
+
 
 - block:
   - name: TC8 - Verify_arp_got_resolved_and_ping_works_on_lag_interface
@@ -600,7 +594,6 @@
     when: inventory_hostname == "TR"
   - name: TC10 - Send ICMP request from traffic generator(Server2) port to TR
     script: files/l3_unknown_unicast.py --dstIP={{IPAddr4}} --srcIP={{IPAddr3}} --serverint={{server_link}} 
-    #command:  bash -c "ping -c 10 {{IPAddr4}}"
     register: result
     when: inventory_hostname == "Server2"
   - debug: 
@@ -682,7 +675,6 @@
   always:
   #Start Cleanup
   - name: Unconfigure static route on DUT and bring down the interface
-    #command: bash -c "ip route del {{route1}}/{{prefixlen}} scope global nexthop via {{IPAddr2}};ip link set {{test_int1}} down; ip addr flush dev {{test_int1}}"
     command:  bash -c "opx-config-route delete --vrf_name default --dst {{route1}}/{{prefixlen}} --nh_addr {{IPAddr2}}"
     when: inventory_hostname == "DUT"
     register: result

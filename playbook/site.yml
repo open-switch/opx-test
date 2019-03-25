@@ -74,8 +74,10 @@
   roles:
     - {role: L3/roles/l3-basic-functionality, tags: ['l3-basic-functionality']}
 
-- hosts: 1host
+- hosts: 2host
   gather_facts: false
+  pre_tasks:
+    - setup:
   become: true
   roles:
     - {role: L3/roles/data_vrf_basic, tags: ['data_vrf_basic']}
