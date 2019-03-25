@@ -229,9 +229,6 @@
       that: "config_lag.rc != 0"
       msg: "A new LAG with an existing LAG ID could be created"
 
-  when: inventory_hostname == "DUT"
-  tags: ['Verify_LAG_Configurations','sanity']
-
 
   rescue:
   - name: Debug Commands for failure analysis
@@ -252,8 +249,7 @@
   - name: Fail here as one of the tasks in block failed
     fail:
        msg: One of the task in the block failed
-  when: (inventory_hostname == "DUT")
-
+  
 
   always:
   - name: TC10 - Verify if the LAG could be deleted
@@ -275,4 +271,6 @@
     assert:
       that: "'No such file or directory' in check_bond_config.stderr"
       msg: "Bond {{lagid}} still present in the kernel"
+      
   when: (inventory_hostname == "DUT")
+  tags: ['Verify_LAG_Configurations','sanity']
