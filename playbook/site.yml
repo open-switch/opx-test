@@ -1,9 +1,26 @@
 ---
 
-- hosts: 1host
+- hosts: os
   gather_facts: false
   pre_tasks:
     - setup:
+  become: false
+  roles:
+    - {role: General/roles/img_install, tags: ['img_install']}
+
+- hosts: os
+  gather_facts: false
+  pre_tasks:
+    - setup:
+
+    - name: Check all the system services are up
+      command: bash -c "systemctl is-system-running"
+      register: system_status
+      until : "'running' in system_status.stdout"
+      retries: 120
+      delay: 1
+      tags: ['smoketest','sanity']
+
   become: true
   roles:
     - {role: General/roles/smoketest, tags: ['smoketest']}
@@ -56,15 +73,6 @@
      - setup:
   roles:
     - {role: Forwarding/roles/span_mirroring, tags: ['span_mirroring']}
-
-
-- hosts: 1host
-  gather_facts: false
-  pre_tasks:
-    - setup:
-  become: false
-  roles:
-    - {role: General/roles/img_install, tags: ['img_install']}
 
 - hosts: 2host
   gather_facts: false
