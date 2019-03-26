@@ -5,11 +5,15 @@ set_eth0: |
   grep -q -F 'source-directory /etc/network/interfaces.d' /etc/network/interfaces || echo 'source-directory /etc/network/interfaces.d' >> /etc/network/interfaces
   grep -q -F 'nameserver' /etc/resolv.conf || echo 'nameserver {{nameserver}}' >> /etc/resolv.conf
   ifconfig eth0 | grep 'addr:{{ ansible_host }}' || ifconfig eth0 {{ ansible_host }} netmask {{ ansible_host_netmask }} up
-  ifconfig eth0
-  route add default gateway {{ ansible_host_gateway }}
-  route -n
+  echo '' > /etc/network/interfaces.d/eth0
+  ifconfig eth0 0.0.0.0
+  echo "auto eth0" >> /etc/network/interfaces.d/eth0
+  echo " iface eth0 inet static" >> /etc/network/interfaces.d/eth0
+  echo " address {{ansible_host}}" >> /etc/network/interfaces.d/eth0
+  echo " netmask {{ansible_host_netmask}}" >> /etc/network/interfaces.d/eth0
+  echo " gateway {{ansible_host_gateway}}" >> /etc/network/interfaces.d/eth0
+  echo " dns-nameservers 8.8.8.8" >> /etc/network/interfaces.d/eth0
   service networking restart
-  ifconfig eth0 {{ ansible_host }} netmask {{ ansible_host_netmask }} up
   ip route add default via {{ ansible_host_gateway }}
   ifconfig eth0
 grub_boot_onie: |
