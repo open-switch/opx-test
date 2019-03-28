@@ -1,0 +1,554 @@
+---
+- block:
+  - name: TC1 - Fanout ports up on DUT
+    import_tasks: setup.yml
+  - name: TC1 - Set IPv6 Address - DUT
+    command: "ip -6 addr add {{item.IPv6}}/{{MASK}} dev {{item.port}}"
+    with_items:
+        - port: "{{test_int1}}"
+          IPv6: "{{DUT1_IPV6_ADDRESS_1}}"
+        - port: "{{server_int}}"
+          IPv6: "{{DUT1_IPV6_ADDRESS_2}}"
+    register: ip_addresses_dut
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Show IPv6 Address - DUT
+    command: bash -c "ip addr show {{item}}"
+    with_items:
+            - "{{test_int1}}"
+            - "{{server_int}}"
+    register: show_ipv6_address_dut
+    when: inventory_hostname == "DUT"
+  - name: TC1 - Verify IPv6 Address - DUT
+    assert:
+      that:
+        - '"inet6 {{DUT1_IPV6_ADDRESS_1}}" in show_ipv6_address_dut.results[0].stdout_lines[2]'
+        - '"inet6 {{DUT1_IPV6_ADDRESS_2}}" in show_ipv6_address_dut.results[1].stdout_lines[2]'
+      msg: "IPv6 setup failed on the ports"
+    when: inventory_hostname == "DUT"
+  - name: TC1 - set IPv6 address TR
+    command: "ip addr add {{TR1_IPV6_ADDRESS_1}}/{{MASK}} dev {{test_int1}}"
+    register: ip_addresses_tr
+    when: inventory_hostname == "TR"
+  - name: TC1 - show IPv6 address TR
+    command: bash -c "ip addr show {{test_int1}}"
+    register: show_ipv6_address_tr
+    when: inventory_hostname == "TR"
+  - name: TC1 - verify ipv6 address
+    assert:
+      that:
+        - '"inet6 {{TR1_IPV6_ADDRESS_1}}" in show_ipv6_address_tr.stdout_lines[2]'
+      msg: "IPv6 setup failed on the ports"
+    when: inventory_hostname == "TR"
+  - name: TC1 - ping from DUT to TR
+    command: bash -c "ping6 -c 5 '{{TR1_IPV6_ADDRESS_1}}'"
+    register: ping_output_dut
+    when: inventory_hostname == "DUT"
+  - name: TC1 - check ping result DUT
+    assert:
+      that: "'64 bytes from {{TR1_IPV6_ADDRESS_1}}' in ping_output_dut.stdout_lines[2]"
+      msg: "ping to TR unsuccessful"
+    when: inventory_hostname == "DUT"
+  tags: ['Check_ipv6_neighbor_discovery', 'sanity']
+  rescue:
+  - name: TC1 - Debug commands for failure analysis
+    command: bash -c "ip link; ip addr show; journalctl -b > /tmp/TC1_routing_ipv6_base_func_test_{{inventory_hostname}}"
+    register: debug_TC1
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC1_routing_ipv6_base_func_test_{{inventory_hostname}}
+      dest: /tmp/TC1_routing_ipv6_base_func_test_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC1 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  always:
+  - name: TC1 - remove ipv6 addresses from interface DUT
+    command: "ip addr flush dev {{item.port}}"
+    with_items:
+        - port: "{{test_int1}}"
+        - port: "{{server_int}}"
+    register: ip_addresses
+    when: inventory_hostname == "DUT"
+  - name: TC1 - remove ipv6 addresses from interface TR
+    command: "ip addr flush dev {{test_int1}}"
+    register: ip_addresses
+    when: inventory_hostname == "TR"
+  - name: TC1 - set interface state DUT
+    command: "ip link set dev {{item}} down"
+    with_items:
+        - "{{test_int1}}"
+        - "{{server_int}}"
+    register: set_interface_state_dut
+    when: inventory_hostname == "DUT"
+  - name: TC1 - set interface state TR1
+    command: "ip link set dev {{test_int1}} down"
+    register: set_interface_state_tr
+    when: inventory_hostname == "TR"
+  - name: TC1 Set Interface State Down - Server1
+    command: "ip link set dev {{server1_port}} down"
+    register: up_interface_state_server1
+    when: inventory_hostname == "Server1"
+  - name: Revert fanned out port connected to server
+    command: bash -c "{{fanoutcmd}} --port {{server_int}} --mode {{combineport}} --speed {{speed2}}"
+    register: fanout_reverse
+    when: (inventory_hostname == "DUT") and ("'does not exist' in fanout_int.stderr")
+
+  
+- block:
+  - name: TC2 - Fanout ports up on DUT
+    import_tasks: setup.yml
+  - name: TC2 - Set IPv6 Address - DUT
+    command: "ip addr add {{item.IPv6}}/{{MASK}} dev {{item.port}}"
+    with_items:
+        - port: "{{test_int1}}"
+          IPv6: "{{DUT1_IPV6_ADDRESS_1}}"
+        - port: "{{server_int}}"
+          IPv6: "{{DUT1_IPV6_ADDRESS_2}}"
+    register: ip_addresses_dut
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Show IPv6 Address - DUT
+    command: "ip addr show {{item}}"
+    with_items:
+            - "{{test_int1}}"
+            - "{{server_int}}"
+    register: show_ipv6_address_dut
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify IPv6 Address - DUT
+    assert:
+      that:
+        - '"inet6 {{DUT1_IPV6_ADDRESS_1}}" in show_ipv6_address_dut.results[0].stdout_lines[2]'
+        - '"inet6 {{DUT1_IPV6_ADDRESS_2}}" in show_ipv6_address_dut.results[1].stdout_lines[2]'
+      msg: "IPv6 setup failed on the ports"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Set IPv6 Address - TR
+    command: "ip addr add {{TR1_IPV6_ADDRESS_1}}/{{MASK}} dev {{test_int1}}"
+    register: set_ip_addresses_tr
+    when: inventory_hostname == "TR"
+  - name: TC2 - Show IPv6 Address - TR
+    command: bash -c "ip addr show dev {{test_int1}}"
+    register: show_ipv6_address_tr
+    when: inventory_hostname == "TR"
+  - name: TC2 - Verify IPv6 Address - TR
+    assert:
+      that:
+        - '"inet6 {{TR1_IPV6_ADDRESS_1}}" in show_ipv6_address_tr.stdout_lines[2]'
+      msg: "IPv6 setup failed on the ports"
+    when: inventory_hostname == "TR"
+  - name: TC2 - Configure IPv6 Address - Server1
+    command: "ip addr add {{server1_ip}}/{{MASK}} dev {{server1_port}}"
+    register: ipv6_addr_server1
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Show IPv6 Address - Server1
+    command: bash -c "ip addr show dev {{server1_port}}"
+    register: show_ipv6_address_server1
+    when: inventory_hostname == "Server1"
+  - debug: msg="{{show_ipv6_address_server1.stdout}}"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Verify IPv6 Address - Server1
+    assert:
+      that:
+        - '"inet6 {{server1_ip}}" in show_ipv6_address_server1.stdout_lines[2]'
+      msg: "IPv6 setup failed on the ports"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Configure Default Route - Server1
+    command: bash -c "ip -6 route add default via {{DUT1_IPV6_ADDRESS_2}}"
+    register: dut_static_route
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Show IPv6 Route Configured - Server1
+    command: bash -c 'ip -6 route show | grep "{{DUT1_IPV6_ADDRESS_2}}"'
+    register: show_route
+    when: inventory_hostname == "Server1"
+  - debug: msg="{{show_route.stdout}}"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Enable IPv6 Forwarding - Server1
+    command: bash -c 'echo "1" > /proc/sys/net/ipv6/conf/all/forwarding'
+    register: ipv6_forwarding_server1
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Configure Static Route - TR
+    command: bash -c "ip -6 route add '{{server1_ip}}'/'{{MASK}}' via '{{DUT1_IPV6_ADDRESS_1}}'"
+    register: tr_static_route
+    when: inventory_hostname == "TR"
+  - name: TC2 - Show Configured route - TR
+    command: bash -c "ip -6 route show | grep {{DUT1_IPV6_ADDRESS_1}}"
+    register: tr_route
+    when: inventory_hostname == "TR"
+  - name: TC2 - Ping from DUT to TR
+    command: bash -c "ping6 -c 5 '{{TR1_IPV6_ADDRESS_1}}'"
+    register: ping_output_dut
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Check Ping Result - DUT
+    assert:
+      that: "'64 bytes from {{TR1_IPV6_ADDRESS_1}}' in ping_output_dut.stdout_lines[2]"
+      msg: "ping to TR unsuccessful"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Ping from Server1 to TR
+    command: bash -c "ping6 -c 5 '{{TR1_IPV6_ADDRESS_1}}'"
+    register: ping_output_server1
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Check Ping Result - Server1
+    assert:
+      that: "'64 bytes from {{TR1_IPV6_ADDRESS_1}}' in ping_output_server1.stdout_lines[2]"
+      msg: "ping to TR unsuccessful"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Clear the stats on all the ports on DUT to start/verify Data Traffic
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{test_int1}}"
+      - "{{server_int}}"
+    register: clear_stats
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Clear the stats on all the ports on TR to start/verify Data Traffic
+    command: bash -c "{{statsCommand}} clear {{test_int1}}"
+    register: clear_stats_TR
+    when: inventory_hostname == "TR"
+  - name: TC2 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: inventory_hostname == "DUT"
+  - name: TC2 - Generate unicast traffic stream from Server(TR----->DUT)
+    script: files/trafficgen.py --dstIP={{TR1_IPV6_ADDRESS_1}} --srcIP={{server1_ip}}
+    register: traffic_gen_known_unicast
+    when: inventory_hostname == "Server1"
+  - name: TC2 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_known_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_known_unicast.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Pause for 20 seconds for the traffic to go through
+    pause:
+      seconds: 20
+  - name: TC2 - Verify unicast traffic receives on {{test_int1}} on TR
+    command: bash -c "{{statsCommand}} if_stat {{test_int1}} | grep ether-rx-no-errors | awk '{print $3}'"
+    register: stat_output
+    when: inventory_hostname == "TR"
+  - name: TC2 - View STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC2 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines[0] | int}}"
+    when: inventory_hostname == "TR"
+  - name: TC2 - Verify the traffic is unicast to {{test_int1}} on TR
+    assert:
+      that:
+        - stat_output.stdout_lines[0] | int >= 100
+      msg: "Traffic is forwarding failed to get to the ports in TR"
+    when: inventory_hostname == "TR"
+  - name: TC2 - View STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC2 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines[0] | int}}"
+    when: inventory_hostname == "TR"
+  tags: ['Configure_static_route_check_traffic_forwarding','sanity']
+  rescue:
+  - name: TC2 - Debug commands for failure analysis
+    command: bash -c "ip link; ip addr show; journalctl -b > /tmp/TC2_routing_ipv6_base_func_test_{{inventory_hostname}}"
+    register: debug_TC2
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC2_routing_ipv6_base_func_test_{{inventory_hostname}}
+      dest: /tmp/TC2_routing_ipv6_base_func_test_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC2 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  always:
+  - name: TC2 - unconfigure default route
+    command: "ip -6 route del default via '{{DUT1_IPV6_ADDRESS_2}}'"
+    register: tr_static_route_del
+    when: inventory_hostname == "Server1"
+  - name: TC2 - Remove IPv6 address on server1 (Traffic Generator)
+    command: "ip addr flush dev {{server1_port}}"
+    register: ipv6_addr_server1_del
+    when: inventory_hostname == "Server1"
+  - name: TC2 - remove ipv6 addresses from interface DUT
+    command: "ip addr flush dev {{item.port}}"
+    with_items:
+        - port: "{{test_int1}}"
+        - port: "{{server_int}}"
+    register: del_ipv6_addresses_dut
+    when: inventory_hostname == "DUT"
+  - name: TC2 - unconfigure static route TR
+    command: bash -c "ip -6 route del '{{server1_ip}}'/'{{MASK}}' via '{{DUT1_IPV6_ADDRESS_1}}'"
+    register: tr_static_route_del
+    when: inventory_hostname == "TR"
+  - name: TC2 - Remove IPv6 address TR
+    command: "ip addr flush dev {{test_int1}}"
+    register: del_ip_addresses_tr
+    when: inventory_hostname == "TR"
+  - name: TC2 - set interface state TR
+    command: "ip link set dev {{test_int1}} down"
+    register: down_interface_tr
+    when: inventory_hostname == "TR"
+  - name: TC2 - set interface state DUT down
+    command: "ip link set dev {{item}} down"
+    with_items:
+        - "{{test_int1}}"
+        - "{{server_int}}"
+    register: set_interface_state_dut
+    when: inventory_hostname == "DUT"
+  - name: TC2 - set interface state Down Server1
+    command: "ip link set dev {{server1_port}} down"
+    register: down_interface_state_server1
+    when: inventory_hostname == "Server1"
+  - name: Revert fanned out port connected to server
+    command: bash -c "{{fanoutcmd}} --port {{server_int}} --mode {{combineport}} --speed {{speed2}}"
+    register: fanout_reverse
+    when: (inventory_hostname == "DUT") and ("'does not exist' in fanout_int.stderr")
+
+  
+- block:
+  - name: TC3 - Fanout ports up on DUT
+    import_tasks: setup.yml
+  - name: TC3 - set IPv6 address DUT
+    command: "ip addr add {{item.IPv6}}/{{MASK}} dev {{item.port}}"
+    with_items:
+        - port: "{{test_int1}}"
+          IPv6: "{{DUT1_IPV6_ADDRESS_1}}"
+        - port: "{{server_int}}"
+          IPv6: "{{DUT1_IPV6_ADDRESS_2}}"
+    register: ip_addresses
+    when: inventory_hostname == "DUT"
+  - name: TC3 - show IPv6 address
+    command: bash -c "ip addr show {{item}}"
+    with_items:
+            - "{{test_int1}}"
+            - "{{server_int}}"
+    register: show_ipv6_address
+    when: inventory_hostname == "DUT"
+  - name: TC3 - verify ipv6 address
+    assert:
+      that:
+        - '"inet6 {{DUT1_IPV6_ADDRESS_1}}" in show_ipv6_address.results[0].stdout_lines[2]'
+        - '"inet6 {{DUT1_IPV6_ADDRESS_2}}" in show_ipv6_address.results[1].stdout_lines[2]'
+      msg: "IPv6 setup failed on the ports"
+    when: inventory_hostname == "DUT"
+  - name: TC3 - set IPv6 address TR
+    command: "ip addr add {{TR1_IPV6_ADDRESS_1}}/{{MASK}} dev {{test_int1}}"
+    register: ip_addresses_tr
+    when: inventory_hostname == "TR"
+  - name: TC3 - show IPv6 address
+    command: bash -c "ip addr show {{test_int1}}"
+    register: show_ipv6_address_tr
+    when: inventory_hostname == "TR"
+  - name: TC3 - verify ipv6 address
+    assert:
+      that:
+        - '"inet6 {{TR1_IPV6_ADDRESS_1}}" in show_ipv6_address_tr.stdout_lines[2]'
+      msg: "IPv6 setup failed on the ports"
+    when: inventory_hostname == "TR"
+  - name: TC3 - Configure IPv6 Address - Server1
+    command: "ip addr add {{server1_ip}}/{{MASK}} dev {{server1_port}}"
+    register: ipv6_addr_server1
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Show IPv6 Address - Server1
+    command: bash -c "ip addr show dev {{server1_port}}"
+    register: show_ipv6_address_server1
+    when: inventory_hostname == "Server1"
+  - debug: msg="{{show_ipv6_address_server1.stdout}}"
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Verify IPv6 Address - Server1
+    assert:
+      that:
+        - '"inet6 {{server1_ip}}" in show_ipv6_address_server1.stdout_lines[2]'
+      msg: "IPv6 setup failed on the ports"
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Configure Default Route - Server1
+    command: bash -c "ip -6 route add default via {{DUT1_IPV6_ADDRESS_2}}"
+    register: dut_static_route
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Show IPv6 Route Configured - Server1
+    command: bash -c 'ip -6 route show | grep "{{DUT1_IPV6_ADDRESS_2}}"'
+    register: show_route
+    when: inventory_hostname == "Server1"
+  - debug: msg="{{show_route.stdout}}"
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Enable IPv6 Forwarding - DUT
+    command: bash -c 'echo "1" > /proc/sys/net/ipv6/conf/all/forwarding'
+    register: ipv6_forwarding_server1
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Configure Route - TR
+    command: bash -c "{{config_route_via_cps}} create --vrf_name default --dst '{{server1_ip}}/{{MASK}}' --nh_addr '{{DUT1_IPV6_ADDRESS_1}}'"
+    register: tr_static_route
+    when: inventory_hostname == "TR"
+  - name: TC3 - Show Configured route - TR
+    command: bash -c "route -A inet6 | grep {{DUT1_IPV6_ADDRESS_1}}"
+    register: tr_route
+    when: inventory_hostname == "TR"
+  - name: TC3 - Verify that route is configured in TR
+    assert:
+      that: " '{{route_shown}}                      {{DUT1_IPV6_ADDRESS_1}}' in tr_route.stdout"
+      msg: "IPv6 Route configuration via cps failed"
+    when: inventory_hostname == "TR"
+  - name: TC3 - Ping from DUT to TR
+    command: bash -c "ping6 -c 5 '{{TR1_IPV6_ADDRESS_1}}'"
+    register: ping_output_dut
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Check Ping Result - DUT
+    assert:
+      that: "'64 bytes from {{TR1_IPV6_ADDRESS_1}}' in ping_output_dut.stdout_lines[2]"
+      msg: "ping to TR unsuccessful"
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Ping from Server1 to TR
+    command: bash -c "ping6 -c 5 '{{DUT1_IPV6_ADDRESS_2}}'"
+    register: ping_output_server1
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Check Ping Result - Server1
+    assert:
+      that: "'64 bytes from {{DUT1_IPV6_ADDRESS_2}}' in ping_output_server1.stdout_lines[2]"
+      msg: "ping to TR unsuccessful"
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Clear the stats on all the ports on DUT to start/verify Data Traffic
+    command: bash -c "{{statsCommand}} clear {{item}}"
+    with_items:
+      - "{{test_int1}}"
+      - "{{server_int}}"
+    register: clear_stats
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Clear the stats on all the ports on TR to start/verify Data Traffic
+    command: bash -c "{{statsCommand}} clear {{test_int1}}"
+    register: clear_stats_TR
+    when: inventory_hostname == "TR"
+  - name: TC3 - STDOUT the output from clear stats
+    debug:
+      msg: "{{clear_stats.results[0].stdout}}"
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Verify the output success from the STDOUT
+    assert:
+      that:
+         - "'Success' in clear_stats.results[0].stdout"
+      msg: "Success not in the {{statsCommand}} clear output"
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Generate unicast traffic stream from Server(TR----->DUT)
+    script: files/trafficgen.py --dstIP={{TR1_IPV6_ADDRESS_1}} --srcIP={{server1_ip}}
+    register: traffic_gen_known_unicast
+    when: inventory_hostname == "Server1"
+  - name: TC3 - STDOUT the output from the python script above
+    debug:
+      msg: "{{traffic_gen_known_unicast.stdout_lines}}"
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Verify the output from the script
+    assert:
+      that: "'100' in traffic_gen_known_unicast.stdout"
+      msg: "Traffic not generated properly"
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Pause for 20 seconds for the traffic to go through
+    pause:
+      seconds: 20
+  - name: TC3 - Verify unicast traffic receives on {{test_int1}} on TR
+    command: bash -c "{{statsCommand}} if_stat {{test_int1}} | grep ether-rx-no-errors | awk '{print $3}'"
+    register: stat_output
+    when: inventory_hostname == "TR"
+  - name: TC3 - View STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC3 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines[0] | int}}"
+    when: inventory_hostname == "TR"
+  - name: TC3 - Verify the traffic is unicast to {{test_int1}} on TR
+    assert:
+      that:
+        - stat_output.stdout_lines[0] | int >= 100
+      msg: "Traffic is forwarding failed to get to the ports in TR"
+    when: inventory_hostname == "TR"
+  - name: TC3 - View STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines}}"
+    when: inventory_hostname == "TR"
+  - name: TC3 - STDOUT the statistics output
+    debug:
+      msg: "{{stat_output.stdout_lines[0] | int}}"
+    when: inventory_hostname == "TR"
+  tags: ['Configure_static_route_via_cps_API_check_traffic_forwarding','sanity']
+  rescue:
+  - name: TC3 - Debug commands for failure analysis
+    command: bash -c "ip link; ip addr show; journalctl -b > /tmp/TC3_routing_ipv6_base_func_test_{{inventory_hostname}}"
+    register: debug_TC3
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC3_routing_ipv6_base_func_test_{{inventory_hostname}}
+      dest: /tmp/TC3_routing_ipv6_base_func_test_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC3 - Remove the logs from DUT and TR
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Fail here as one of the tasks in block failed
+    fail:
+     msg: One of the task in the block failed
+  always:
+  - name: TC3 - Unconfigure Default Route - Server1
+    command: bash -c "ip -6 route del default via {{DUT1_IPV6_ADDRESS_2}}"
+    register: dut_static_route
+    when: inventory_hostname == "Server1"
+  - name: TC3 - Unconfigure Route - TR
+    command: bash -c "{{config_route_via_cps}} delete --vrf_name default --dst '{{server1_ip}}/{{MASK}}' --nh_addr '{{DUT1_IPV6_ADDRESS_1}}'"
+    register: tr_static_route
+    when: inventory_hostname == "TR"
+  - name: TC3 - remove IPv6 address - DUT
+    command: "ip addr flush dev {{item.port}}"
+    with_items:
+        - port: "{{test_int1}}"
+        - port: "{{server_int}}"
+    register: ip_addresses_dut
+    when: inventory_hostname == "DUT"
+  - name: TC3 - remove IPv6 address - TR
+    command: "ip addr flush dev {{server_link}}"
+    register: ip_addresses_tr_del
+    when: inventory_hostname == "Server1"
+  - name: TC3 - remove IPv6 address - TR
+    command: "ip addr flush dev {{test_int1}}"
+    register: ip_addresses_tr_del
+    when: inventory_hostname == "TR"
+  - name: TC3 - Set interface state DUT - down
+    command: "ip link set dev {{item}} down"
+    with_items:
+        - "{{test_int1}}"
+        - "{{server_int}}"
+    register: set_interface_state_dut_down
+    when: inventory_hostname == "DUT"
+  - name: TC3 - Set interface state TR - down
+    command: "ip link set dev {{test_int1}} down"
+    register: set_interface_state_down_tr
+    when: inventory_hostname == "TR"
+  - name: TC3 Set Interface State Down - Server1
+    command: "ip link set dev {{server_link}} down"
+    register: up_interface_state_server1
+    when: inventory_hostname == "Server1"
+  - name: TC3-Revert fanned out port connected to server
+    command: bash -c "{{fanoutcmd}} --port {{server_int}} --mode {{combineport}} --speed {{speed2}}"
+    register: fanout_reverse
+    when: (inventory_hostname == "DUT") and ("'does not exist' in fanout_int.stderr")

@@ -1,0 +1,6 @@
+---
+
+- hosts: localhost
+  remote_user: root
+  roles:
+    - Routing_IPv6_base_functionality

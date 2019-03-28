@@ -1,0 +1,3 @@
+---
+# tasks file for IPv6_Base_functionality
+- include: Routing_IPv6_base_functionality.yml
