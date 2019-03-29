@@ -89,7 +89,6 @@
   roles:
     - {role: L2/roles/l2_stp, tags: ['l2_stp']}
 
-
 - hosts: 2host
   gather_facts: false
   become: true
@@ -105,29 +104,6 @@
   become: true
   pre_tasks:
      - setup:
-  vars_files:
-    - "group_vars/{{ ansible_network_os }}_vars.yml"
-  roles:
-    - {role: Platform/roles/platform_optic, tags: ['platform_optic']}
-
-- hosts: 1host
-  gather_facts: false
-  become: true
-  pre_tasks:
-     - setup:
-  vars_files:
-    - "group_vars/{{ ansible_network_os }}_vars.yml"
-  roles:
-    - {role: Platform/roles/platform_watchdog, tags: ['platform_watchdog']}
-
-
-- hosts: 1host
-  gather_facts: false
-  become: true
-  pre_tasks:
-     - setup:
-  vars_files:
-    - "group_vars/{{ ansible_network_os }}_vars.yml"
   roles:
     - {role: Routing_IPv6_base_functionality/roles/Routing_IPv6, tags: ['Routing_IPv6_base_functionality']}
 

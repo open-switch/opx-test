@@ -15,6 +15,7 @@ switchShell:    "opx-switch-shell"
 configSystem:    "opx-config-switch"
 versionCommand:  "opx-show-version"
 nameserver: "8.8.8.8"
+config_route_via_cps:  "opx-config-route"
 
 #### OPX Image Installation Variables
 
