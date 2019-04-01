@@ -34,16 +34,15 @@
     apt:
       name: bridge-utils
       update_cache: yes
+  - name: Fanout the ports connected to server
+    command: bash -c "{{fanoutcmd}} --port {{fanoutport}} --mode {{splitport}} --speed {{speed}}"
+    register: fanout
+    ignore_errors: yes
+    when: (inventory_hostname in groups['2host'][0]) or (inventory_hostname in groups['2host'][1])
   - name: Check the fanout port exists
     command: bash -c "ip link show {{server_int}}"
     register: fanout_int
-    ignore_errors: yes
-  - name: Fanout the ports connected to server
-    command: bash -c "{{fanoutcmd}} {{fanoutport}} {{splitport}} {{speed}}"
-    register: fanout
-    when: 
-      - (inventory_hostname in groups['2host'][0]) or (inventory_hostname in groups['2host'][1])
-      - "'does not exist' in fanout_int.stderr"
+    when: (inventory_hostname in groups['2host'][0]) or (inventory_hostname in groups['2host'][1])
   - name: Bring up the front end ports connected to DUT,TR and Server
     command: bash -c "ip link set dev {{item}} up"
     with_items:

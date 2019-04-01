@@ -34,22 +34,34 @@
     apt:
       name: bridge-utils
       update_cache: yes
+    ignore_errors: yes
+  - name: Cleanup the bridges on all the machines
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan delete --id {{vlanid}}"
+    register: del_bridge
+    ignore_errors: yes
+  - name: Fanout the ports connected to server
+    command: bash -c "{{fanoutcmd}} --port {{fanoutport}} --mode {{splitport}} --speed {{speed}}"
+    register: fanout
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: Check the fanout port exists
     command: bash -c "ip link show {{server_int}}"
     register: fanout_int
-    ignore_errors: yes
-  - name: Fanout the ports connected to server
-    command: bash -c "{{fanoutcmd}} {{fanoutport}} {{splitport}} {{speed}}"
-    register: fanout
-    when: 
-      - (inventory_hostname in groups['2host'][0]) or (inventory_hostname in groups['2host'][1])
-      - "'does not exist' in fanout_int.stderr"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: Bring up the front end ports connected to DUT,TR and Server
     command: bash -c "ip link set dev {{item}} up"
+    register: interfaces_up
     with_items:
         - "{{server_int}}"
         - "{{test_int1}}"
         - "{{test_int2}}"
+  - debug: 
+      var: interfaces_up
+
+  - name: Clean up the LAGs in DUT and TR
+    command: bash -c "opx-config-lag set --name {{bond_interface}} --unblockedports none --blockedports none; opx-config-lag delete --name {{bond_interface}}"
+    register: del_lag
+    ignore_errors: yes
   when: (inventory_hostname in groups['2host'][0]) or (inventory_hostname in groups['2host'][1])
 
 - block:
@@ -63,6 +75,10 @@
     assert:
       that: "'state UP' in verify_status_server.stdout"
       msg: "Interface is not up on Server side"
+  - name: Cleanup the bridges on all the machines
+    command: bash -c "ip link set dev br{{vlanid}} down; brctl delbr br{{vlanid}}"
+    register: del_bridge
+    ignore_errors: yes
   when: (inventory_hostname in groups['2host'][2]) or (inventory_hostname in groups['2host'][3])
 
 

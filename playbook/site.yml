@@ -103,4 +103,3 @@
      - setup:
   roles:
     - {role: Routing_IPv6_base_functionality/roles/Routing_IPv6, tags: ['Routing_IPv6_base_functionality']}
-

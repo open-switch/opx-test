@@ -1,0 +1,17 @@
+---
+
+# vars file for data_vrf_basic
+
+vrf_config_cmd: opx-config-vrf
+vrf_name: blue
+ip_address1 : "2.2.2.1"
+subnetmask1: 24
+ip_address2 : "2.2.2.2"
+subnetmask2: 24
+vrf_network_prefix: "3.3.3.0/24"
+vrf_network_prefix2: "2.2.2.0/24"
+vrf_name2: red
+ip_address3: "3.3.3.1"
+
+vrf_port1: "e101-001-0"
+vrf_port2: "e101-002-0"
