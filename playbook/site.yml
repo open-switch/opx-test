@@ -4,13 +4,11 @@
   gather_facts: false
   pre_tasks:
     - setup:
-  vars_files:
-    - "group_vars/{{ ansible_network_os }}_vars.yml"
   become: false
   roles:
-    - {role: General/roles/img_install, tags: ['always','img_install'], when: image is defined}
+    - {role: General/roles/img_install, tags: ['img_install']}
 
-- hosts: 1host
+- hosts: os
   gather_facts: false
   pre_tasks:
     - setup:
@@ -22,39 +20,32 @@
       retries: 120
       delay: 1
       tags: ['smoketest','sanity']
-           
-   
-    - name: Verify the services are up
-      assert:
-        that: "'running' in system_status.stdout"
-        msg: "Expected running status"
-      tags: ['smoketest','sanity']
 
-  vars_files:
-    - "group_vars/{{ ansible_network_os }}_vars.yml"
   become: true
   roles:
     - {role: General/roles/smoketest, tags: ['smoketest']}
+
+- hosts: 1host
+  gather_facts: false
+  pre_tasks:
+    - setup:
+  become: true
+  roles:
+    - {role: L2/roles/vlanConfig, tags: ['vlanConfig']}
+
+- hosts: 1host
+  gather_facts: false
+  pre_tasks:
+    - setup:
+  become: true
+  roles:
+    - {role: L2/roles/lagConfig, tags: ['lagConfig']}
 
 - hosts: 2host
   gather_facts: false
   become: true
   pre_tasks:
-    - setup:
-    - name: Check all the system services are up
-      command: bash -c "systemctl is-system-running"
-      register: system_status
-      tags: ['smoketest','sanity']
-      when: (inventory_hostname == 'DUT') or (inventory_hostname == 'TR')
-
-    - name: Verify the services are up
-      assert:
-        that: "'degraded' in system_status.stdout"
-        msg: "Expected running status"
-      when: (inventory_hostname == 'DUT') or (inventory_hostname == 'TR')
-
-  vars_files:
-    - "group_vars/{{ ansible_network_os }}_vars.yml"
+     - setup:
   roles:
     - {role: L2/roles/l2mac, tags: ['l2mac']}
 
@@ -63,8 +54,6 @@
   become: true
   pre_tasks:
      - setup:
-  vars_files:
-    - "group_vars/{{ ansible_network_os }}_vars.yml"
   roles:
     - {role: L2/roles/l3_intra_inter, tags: ['l3_intra_inter']}
 
@@ -73,33 +62,41 @@
   become: true
   pre_tasks:
      - setup:
-  vars_files:
-    - "group_vars/{{ ansible_network_os }}_vars.yml"
-  roles:
-    - {role: L3/roles/data_vrf_basic, tags: ['data_vrf_basic']}
-
-
-- hosts: 2host
-  gather_facts: false
-  become: true
-  pre_tasks:
-     - setup:
-  vars_files:
-    - "group_vars/{{ ansible_network_os }}_vars.yml"
   roles:
     - {role: L2/roles/l2_stp, tags: ['l2_stp']}
 
+
 - hosts: 2host
   gather_facts: false
   become: true
   pre_tasks:
      - setup:
-  vars_files:
-    - "group_vars/{{ ansible_network_os }}_vars.yml"
   roles:
     - {role: Forwarding/roles/span_mirroring, tags: ['span_mirroring']}
 
-- hosts: 1host
+- hosts: 2host
+  gather_facts: false
+  become: true
+  pre_tasks:
+     - setup:
+  roles:
+    - {role: L3/roles/l3-basic-functionality, tags: ['l3-basic-functionality']}
+
+- hosts: 2host
+  gather_facts: false
+  pre_tasks:
+    - setup:
+  become: true
+  roles:
+    - {role: L3/roles/data_vrf_basic, tags: ['data_vrf_basic']}
+
+- hosts: 2host
+  gather_facts: false
+  become: true
+  roles:
+- {role: L2/roles/lldp, tags: ['lldp']}
+
+- hosts: 2host
   gather_facts: false
   become: true
   pre_tasks:
