@@ -12,18 +12,13 @@
     register: ip_addresses_dut
     when: inventory_hostname == "DUT"
   - name: TC1 - Show IPv6 Address - DUT
-    command: bash -c "ip addr show {{item}}"
+    command: bash -c "ip addr show {{item.port}} | grep {{item.IPv6}}"
     with_items:
-            - "{{test_int1}}"
-            - "{{server_int}}"
+        - port: "{{test_int1}}"
+          IPv6: "{{DUT1_IPV6_ADDRESS_1}}"
+        - port: "{{server_int}}"
+          IPv6: "{{DUT1_IPV6_ADDRESS_2}}"
     register: show_ipv6_address_dut
-    when: inventory_hostname == "DUT"
-  - name: TC1 - Verify IPv6 Address - DUT
-    assert:
-      that:
-        - '"inet6 {{DUT1_IPV6_ADDRESS_1}}" in show_ipv6_address_dut.results[0].stdout_lines[2]'
-        - '"inet6 {{DUT1_IPV6_ADDRESS_2}}" in show_ipv6_address_dut.results[1].stdout_lines[2]'
-      msg: "IPv6 setup failed on the ports"
     when: inventory_hostname == "DUT"
   - name: TC1 - set IPv6 address TR
     command: "ip addr add {{TR1_IPV6_ADDRESS_1}}/{{MASK}} dev {{test_int1}}"

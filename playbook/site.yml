@@ -94,7 +94,7 @@
   gather_facts: false
   become: true
   roles:
-- {role: L2/roles/lldp, tags: ['lldp']}
+    - {role: L2/roles/lldp, tags: ['lldp']}
 
 - hosts: 2host
   gather_facts: false
@@ -102,4 +102,4 @@
   pre_tasks:
      - setup:
   roles:
-    - {role: Routing_IPv6_base_functionality/roles/Routing_IPv6, tags: ['Routing_IPv6_base_functionality']}
+    - {role: L3/roles/Routing_IPv6, tags: ['Routing_IPv6']}

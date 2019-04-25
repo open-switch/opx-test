@@ -273,4 +273,4 @@
       msg: "Bond {{lagid}} still present in the kernel"
       
   when: (inventory_hostname == "DUT")
-  tags: ['Verify_LAG_Configurations','sanity']
+  tags: ['Verify_LAG_Configurations']

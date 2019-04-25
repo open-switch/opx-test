@@ -607,7 +607,6 @@
       var: result
     when: inventory_hostname == "DUT"
   - name: TC10 - Configure static route on DUT1 to destination network 200.1.1.0 with nexthop 10.1.1.2
-    #command:  bash -c "sysctl -w net.ipv4.ip_forward=1; ip route add {{route1}} scope global nexthop via {{IPAddr2}}"
     command:  bash -c "opx-config-route create --vrf_name default --dst {{route1}}/{{prefixlen}} --nh_addr {{IPAddr2}}"
     register: result
     when: inventory_hostname == "DUT"
@@ -674,15 +673,15 @@
      msg: One of the task in the block failed
   always:
   #Start Cleanup
-  - name: Unconfigure static route on DUT and bring down the interface
-    command:  bash -c "opx-config-route delete --vrf_name default --dst {{route1}}/{{prefixlen}} --nh_addr {{IPAddr2}}"
+  - name: Unconfigure static route on DUT and bring down the interface and remove ip
+    command:  bash -c "opx-config-route delete --vrf_name default --dst {{route1}}/{{prefixlen}} --nh_addr {{IPAddr2}}; opx-config-route delete --ip_addr {{IPAddr1}}/{{prefixlen}} --ifname {{test_int1}}"
     when: inventory_hostname == "DUT"
     register: result
     ignore_errors: yes
   - debug:
       var: result
     when: inventory_hostname == "DUT"
-  - name: Bring down interface TR
+  - name: Bring down interface and remove IP on TR
     command: bash -c "ip link set {{item}} down; ip addr flush dev {{item}}"
     with_items:
         - "{{server_int}}"

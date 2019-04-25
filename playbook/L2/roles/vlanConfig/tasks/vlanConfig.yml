@@ -274,4 +274,4 @@
       msg: "br{{vlanid}} still present in the NPU"
 
   when: (inventory_hostname == "DUT")
-  tags: ['Verify_VLAN_Configurations','sanity']
+  tags: ['Verify_VLAN_Configurations']
