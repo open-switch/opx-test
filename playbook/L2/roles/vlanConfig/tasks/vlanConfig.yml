@@ -1,7 +1,7 @@
 ---
 
 - block:
-  - name: Setup the switch before running the TCs
+  - name: TC1 - Setup the switch before running the TCs
     import_tasks: setup.yml
   - name: TC1 - Verify if VLAN creation is successful
     shell: echo "***** Verify VLAN creation is successful *****"
@@ -40,7 +40,40 @@
     pause:
       seconds: 2
 
+  tags: ['Verify_Layer2_VLAN_creation_works','sanity']
 
+  rescue:
+  - name: TC1 - Debug Commands for failure analysis
+    command: bash -c "ifconfig -a; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
+    register: debug
+  - name: TC1 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC_VLAN_CREATE_{{inventory_hostname}}"
+    register: copy_log
+  - name: TC1 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC_VLAN_CREATE_{{inventory_hostname}}
+      dest: /tmp/TC_VLAN_CREATE_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+  - name: TC1 - Remove the logs from DUT
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+  - name: TC1 - Fail here as one of the tasks in block failed
+    fail:
+       msg: One of the task in the block failed
+
+
+  always:
+  - name: TC1 - Clean up the VLAN
+    import_tasks: vlan_post_test.yml
+
+  when: (inventory_hostname == "DUT")
+
+- block:
+  - name: TC2 - Setup the switch before running the TCs
+    import_tasks: setup.yml
+  - name: TC2 - Setup VLAN before running the TC
+    import_tasks: vlan_pre_test.yml
   - name: TC2 - Verify opx-show-vlan output is correct
     shell: echo "******** Verify opx-show-vlan output is correct ******"
     register: TC2
@@ -55,9 +88,41 @@
     pause:
       seconds: 2
 
+  tags: ['Verify_Layer2_VLAN_show_syntax_is_correct','sanity']
 
-  - name: TC3 - Verify if tagged port addition to a VLAN is successful
-    shell: echo "***** Verify if tagged port addition to a VLAN is successful *****"
+  rescue:
+  - name: TC2 - Debug Commands for failure analysis
+    command: bash -c "ifconfig -a; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
+    register: debug
+  - name: TC2 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC_VLAN_SHOW_{{inventory_hostname}}"
+    register: copy_log
+  - name: TC2 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC_VLAN_SHOW_{{inventory_hostname}}
+      dest: /tmp/TC_VLAN_SHOW_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+  - name: TC2 - Remove the logs from DUT
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+  - name: TC2 - Fail here as one of the tasks in block failed
+    fail:
+       msg: One of the task in the block failed
+
+  always:
+  - name: TC2 - Clean up the VLAN
+    import_tasks: vlan_post_test.yml
+
+  when: (inventory_hostname == "DUT")
+
+- block:
+  - name: TC3 - Setup the switch before running the TCs
+    import_tasks: setup.yml
+  - name: TC3 - Setup VLAN before running the TC
+    import_tasks: vlan_pre_test.yml
+  - name: TC3 - Verify if tagged port addition/removal/updation is successful
+    shell: echo "***** Verify if tagged port addition/removal/updation is successful *****"
     register: TC3
   - name: TC3 - Add a tagged port {{test_int1}} to vlan {{vlanid}}
     command: bash -c "opx-config-vlan add --id {{vlanid}} --taggedports {{test_int1}}"
@@ -76,13 +141,84 @@
     assert:
       that: "show_kernel.stdout | search('{{test_int1}}.{{vlanid}}')"
       msg: Kernel is not updated - taggedport {{test_int1}} is not present in the VLAN {{vlanid}}
+  - name: TC3 - Remove tagged port {{test_int1}} from vlan {{vlanid}}
+    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{test_int1}}"
+    register: config_vlan
+  - name: TC3 - Get the VLAN data from CPS
+    command: bash -c "opx-show-vlan --id {{vlanid}}"
+    register: show_cps
+  - name: TC3 - Verify if the VLAN does not contain the taggedport {{test_int1}} in the CPS data
+    assert:
+      that: "show_cps.stdout | search('Tagged ports:     None')"
+      msg: CPS is not updated - taggedport {{test_int1}} is still present in the VLAN {{vlanid}}
+  - name: TC3 - Get the bridge data from kernel
+    command: bash -c "brctl show br{{vlanid}}"
+    register: show_kernel
+  - name: TC3 - Verify if the VLAN does not contain the taggedport {{test_int1}} in the kernel data
+    assert:
+      that: "not show_kernel.stdout | search('{{test_int1}}.{{vlanid}}')"
+      msg: Kernel is not updated - taggedport {{test_int1}} is still present in the VLAN {{vlanid}}
+  - name: TC3 - Set tagged ports {{test_int1}},{{test_int2}} in the VLAN {{vlanid}}
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan set --id {{vlanid}} --taggedports {{test_int1}},{{test_int2}}"
+    register: config_vlan
+  - name: TC3 - Get the VLAN data from CPS
+    command: bash -c "opx-show-vlan --id {{vlanid}}"
+    register: show_cps
+  - name: TC3 - Verify if the VLAN contains the tagged ports {{test_int1}} and {{test_int2}} in the CPS data
+    assert:
+      that: 
+      - "show_cps.stdout | search('Tagged ports:     {{test_int2}} {{test_int1}}')"
+      - "show_cps.stdout | search('Untagged ports:   None')"
+      msg: CPS is not updated - tagged ports {{test_int1}} and {{test_int2}} are not present in the VLAN {{vlanid}}
+  - name: TC3 - Get the bridge data from kernel
+    command: bash -c "brctl show br{{vlanid}}"
+    register: show_kernel
+  - name: TC3 - Verify if the VLAN contains the tagged ports {{test_int1}} and {{test_int2}} in the kernel data
+    assert:
+      that: 
+      - "show_kernel.stdout | search('{{test_int1}}.{{vlanid}}')"
+      - "show_kernel.stdout | search('{{test_int2}}.{{vlanid}}')"
+      msg: Kernel is not updated - untagged ports {{test_int1}} and {{test_int2}} are not present in the VLAN {{vlanid}}
   - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
 
+  tags: ['Verify_Layer2_VLAN_tagged_port_config_works','sanity']
 
-  - name: TC4 - Verify if untagged port addition to a VLAN is successful
-    shell: echo "***** Verify if untagged port addition to a VLAN is successful *****"
+  rescue:
+  - name: TC3 - Debug Commands for failure analysis
+    command: bash -c "ifconfig -a; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
+    register: debug
+  - name: TC3 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC_VLAN_TAGGED_PORT_CONFIG{{inventory_hostname}}"
+    register: copy_log
+  - name: TC3 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC_VLAN_TAGGED_PORT_CONFIG_{{inventory_hostname}}
+      dest: /tmp/TC_VLAN_TAGGED_PORT_CONFIG_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+  - name: TC3 - Remove the logs from DUT
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+  - name: TC3 - Fail here as one of the tasks in block failed
+    fail:
+       msg: One of the task in the block failed
+
+  always:
+  - name: TC3 - Clean up the VLAN
+    import_tasks: vlan_post_test.yml
+
+  when: (inventory_hostname == "DUT")
+
+
+- block:
+  - name: TC4 - Setup the switch before running the TCs
+    import_tasks: setup.yml
+  - name: TC4 - Setup VLAN before running the TC
+    import_tasks: vlan_pre_test.yml
+  - name: TC4 - Verify if untagged port addition/removal/updation is successful
+    shell: echo "***** Verify if untagged port addition/removal/updation is successful *****"
     register: TC4
   - name: TC4 - Add an untagged port {{test_int2}} to vlan {{vlanid}}
     command: bash -c "opx-config-vlan add --id {{vlanid}} --ports {{test_int2}}"
@@ -101,82 +237,44 @@
     assert:
       that: "show_kernel.stdout | search('{{test_int2}}')"
       msg: Kernel is not updated - untaggedport {{test_int2}} is not present in the VLAN {{vlanid}}
-  - name: Pause for 2 seconds for the next TC to start
-    pause:
-      seconds: 2
-
-
-  - name: TC5 - Verify if tagged port removal from a VLAN is successful
-    shell: echo "***** Verify if tagged port removal from a VLAN is successful *****"
-    register: TC5
-  - name: TC5 - Remove tagged port {{test_int1}} from vlan {{vlanid}}
-    command: bash -c "opx-config-vlan remove --id {{vlanid}} --taggedports {{test_int1}}"
-    register: config_vlan
-  - name: TC5 - Get the VLAN data from CPS
-    command: bash -c "opx-show-vlan --id {{vlanid}}"
-    register: show_cps
-  - name: TC5 - Verify if the VLAN contains the taggedport {{test_int1}} in the CPS data
-    assert:
-      that: "show_cps.stdout | search('Tagged ports:     None')"
-      msg: CPS is not updated - taggedport {{test_int1}} is still present in the VLAN {{vlanid}}
-  - name: TC5 - Get the bridge data from kernel
-    command: bash -c "brctl show br{{vlanid}}"
-    register: show_kernel
-  - name: TC5 - Verify if the VLAN contains the taggedport {{test_int1}} in the kernel data
-    assert:
-      that: "not show_kernel.stdout | search('{{test_int1}}.{{vlanid}}')"
-      msg: Kernel is not updated - taggedport {{test_int1}} is still present in the VLAN {{vlanid}}
-  - name: Pause for 2 seconds for the next TC to start
-    pause:
-      seconds: 2
-
-
-  - name: TC6 - Verify if untagged port removal from a VLAN is successful
-    shell: echo "***** Verify if untagged port removal from a VLAN is successful *****"
-    register: TC6
-  - name: TC6 - Remove untagged port {{test_int2}} from vlan {{vlanid}}
+  - name: TC4 - Remove untagged port {{test_int2}} from vlan {{vlanid}}
     command: bash -c "opx-config-vlan remove --id {{vlanid}} --ports {{test_int2}}"
     register: config_vlan
-  - name: TC6 - Get the VLAN data from CPS
+  - name: TC4 - Get the VLAN data from CPS
     command: bash -c "opx-show-vlan --id {{vlanid}}"
     register: show_cps
-  - name: TC6 - Verify if the VLAN contains the untaggedport {{test_int2}} in the CPS data
+  - name: TC4 - Verify if the VLAN does not contain the untaggedport {{test_int2}} in the CPS data
     assert:
       that: "show_cps.stdout | search('Untagged ports:   None')"
       msg: CPS is not updated - untaggedport {{test_int2}} is still present in the VLAN {{vlanid}}
-  - name: TC6 - Get the bridge data from kernel
+  - name: TC4 - Get the bridge data from kernel
     command: bash -c "brctl show br{{vlanid}}"
     register: show_kernel
-  - name: TC6 - Verify if the VLAN contains the untaggedport {{test_int2}} in the kernel data
+  - name: TC4 - Verify if the VLAN does not contain the untaggedport {{test_int2}} in the kernel data
     assert:
       that: "not show_kernel.stdout | search('{{test_int2}}')"
       msg: Kernel is not updated - untaggedport {{test_int2}} is still present in the VLAN {{vlanid}}
-  - name: Pause for 2 seconds for the next TC to start
-    pause:
-      seconds: 2
-
-
-  - name: TC7 - Verify if untagged port list of the VLAN could be set to a given list
+  - name: TC4 - Verify if untagged port list of the VLAN could be set to a given list
     shell: echo "***** Verify if untagged port list of the VLAN could be set to a given list *****"
-    register: TC7
-  - name: TC7 - Set untagged ports {{test_int1}},{{test_int2}} in the VLAN {{vlanid}}
+    register: TC4
+  - name: TC4 - Set untagged ports {{test_int1}},{{test_int2}} in the VLAN {{vlanid}}
     command: bash -c "opx-config-vlan set --id {{vlanid}} --ports {{test_int1}},{{test_int2}}"
     register: config_vlan
-  - name: TC7 - Get the VLAN data from CPS
+  - name: TC4 - Get the VLAN data from CPS
     command: bash -c "opx-show-vlan --id {{vlanid}}"
     register: show_cps
-  - name: TC7 - Verify if the VLAN contains the untagged ports {{test_int1}} and {{test_int2}} in the CPS data
+  - name: TC4 - Verify if the VLAN contains the untagged ports {{test_int1}} and {{test_int2}} in the CPS data
     assert:
       that: 
       - "show_cps.stdout | search('Tagged ports:     None')"
       - "show_cps.stdout | search('Untagged ports:   {{test_int2}} {{test_int1}}')"
       msg: CPS is not updated - untagged ports {{test_int1}} and {{test_int2}} are not present in the VLAN {{vlanid}}
-  - name: TC7 - Get the bridge data from kernel
+  - name: TC4 - Get the bridge data from kernel
     command: bash -c "brctl show br{{vlanid}}"
     register: show_kernel
-  - name: TC7 - Verify if the VLAN contains the untagged ports {{test_int1}} and {{test_int2}} in the kernel data
+  - name: TC4 - Verify if the VLAN contains the untagged ports {{test_int1}} and {{test_int2}} in the kernel data
     assert:
-      that:
+      that: 
       - "show_kernel.stdout | search('{{test_int1}}')"
       - "show_kernel.stdout | search('{{test_int2}}')"
       msg: Kernel is not updated - untagged ports {{test_int1}} and {{test_int2}} are not present in the VLAN {{vlanid}}
@@ -184,94 +282,79 @@
     pause:
       seconds: 2
 
-
-  - name: TC8 - Verify if tagged port list of the VLAN could be set to a given list
-    shell: echo "***** Verify if tagged port list of the VLAN could be set to a given list *****"
-    register: TC8
-  - name: TC8 - Set tagged ports {{test_int1}},{{test_int2}} in the VLAN {{vlanid}}
-    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan set --id {{vlanid}} --taggedports {{test_int1}},{{test_int2}}"
-    register: config_vlan
-  - name: TC8 - Get the VLAN data from CPS
-    command: bash -c "opx-show-vlan --id {{vlanid}}"
-    register: show_cps
-  - name: TC8 - Verify if the VLAN contains the tagged ports {{test_int1}} and {{test_int2}} in the CPS data
-    assert:
-      that: 
-      - "show_cps.stdout | search('Tagged ports:     {{test_int2}} {{test_int1}}')"
-      - "show_cps.stdout | search('Untagged ports:   None')"
-      msg: CPS is not updated - tagged ports {{test_int1}} and {{test_int2}} are not present in the VLAN {{vlanid}}
-  - name: TC8 - Get the bridge data from kernel
-    command: bash -c "brctl show br{{vlanid}}"
-    register: show_kernel
-  - name: TC8 - Verify if the VLAN contains the tagged ports {{test_int1}} and {{test_int2}} in the kernel data
-    assert:
-      that: 
-      - "show_kernel.stdout | search('{{test_int1}}.{{vlanid}}')"
-      - "show_kernel.stdout | search('{{test_int2}}.{{vlanid}}')"
-      msg: Kernel is not updated - untagged ports {{test_int1}} and {{test_int2}} are not present in the VLAN {{vlanid}}
-  - name: Pause for 2 seconds for the next TC to start
-    pause:
-      seconds: 2
-
-
-  - name: TC9 - Verify if creating an existing VLAN throws an error
-    shell: echo "***** Verify if creating an existing VLAN throws an error *****"
-    register: T9C
-  - name: TC9 - Creat VLAN {{vlanid}}, which is already existing
-    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data"
-    register: config_vlan
-  - name: TC9 - Verify the resulted output is success or failure
-    assert:
-      that: "config_vlan.rc != 0"
-      msg: "A new VLAN without existing VLAN id could be created"
-  - name: Pause for 2 seconds for the next TC to start
-    pause:
-      seconds: 2
-
+  tags: ['Verify_Layer2_VLAN_untagged_port_config_works','sanity']
 
   rescue:
-  - name: Debug Commands for failure analysis
+  - name: TC4 - Debug Commands for failure analysis
     command: bash -c "ifconfig -a; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
     register: debug
-  - name: Copy the journalctl logs to a log file
-    command: bash -c "journalctl -b > /tmp/TC_VLAN_CONFIG_{{inventory_hostname}}"
+  - name: TC4 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC_VLAN_UNTAGGED_PORT_CONFIG_{{inventory_hostname}}"
     register: copy_log
-  - name: Copy the journalctl logs to the local machine
+  - name: TC4 - Copy the journalctl logs to the local machine
     fetch:
-      src: /tmp/TC_VLAN_CONFIG_{{inventory_hostname}}
-      dest: /tmp/TC_VLAN_CONFIG_{{inventory_hostname}}
+      src: /tmp/TC_VLAN_UNTAGGED_PORT_CONFIG_{{inventory_hostname}}
+      dest: /tmp/TC_VLAN_UNTAGGED_PORT_CONFIG_{{inventory_hostname}}
       mode: 0755
       flat: yes
-  - name: Remove the logs from DUT
+  - name: TC4 - Remove the logs from DUT
     command: bash -c "rm -rf /tmp/TC*"
     register: delete_logs
-  - name: Fail here as one of the tasks in block failed
+  - name: TC4 - Fail here as one of the tasks in block failed
     fail:
        msg: One of the task in the block failed
 
-
   always:
-  - name: TC10 - Verify if the VLAN could be deleted
-    shell: echo "***** Verify if the VLAN could be deleted *****"
-    register: TC10
-  - name: TC10 - Delete member ports from the VLAN
-    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none"
-    register: clean_up_bridge_member
-    ignore_errors: yes
-  - name: TC10 - Clean up the bridge configurations on DUT
-    command: bash -c "opx-config-vlan delete --id {{vlanid}}"
-    register: clean_up_bridge
-  - name: TC10 - Check br{{vlanid}} exists on DUT 
-    command: bash -c "brctl show br{{vlanid}}"
-    register: check_bridge_config
-    ignore_errors: yes
-  - name: TC10 -  output the command whether br{{vlanid}} exists
-    debug:
-      msg: "{{check_bridge_config.stderr}}"
-  - name: TC10 - Verify the output of the command whether br{{vlanid}} exists
-    assert:
-      that: "'No such device' in check_bridge_config.stderr"
-      msg: "br{{vlanid}} still present in the NPU"
+  - name: TC4 - Clean up the VLAN
+    import_tasks: vlan_post_test.yml
 
   when: (inventory_hostname == "DUT")
-  tags: ['Verify_VLAN_Configurations']
+
+
+- block:
+  - name: TC5 - Setup the switch before running the TCs
+    import_tasks: setup.yml
+  - name: TC5 - Setup VLAN before running the TC
+    import_tasks: vlan_pre_test.yml
+  - name: TC5 - Verify if creating an existing VLAN throws an error
+    shell: echo "***** Verify if creating an existing VLAN throws an error *****"
+    register: TC5
+  - name: TC5 - Create VLAN {{vlanid}}, which is already existing
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data"
+    register: config_vlan
+    ignore_errors: yes
+  - name: TC5 - Verify the resulted output is success or failure
+    assert:
+      that: "config_vlan.rc != 0"
+      msg: "Creating a VLAN with an existing VLAN id is rightfully rejected"
+  - name: Pause for 2 seconds for the next TC to start
+    pause:
+      seconds: 2
+
+  tags: ['Verify_Layer2_VLAN_double_creation_fails','sanity']
+
+  rescue:
+  - name: TC5 - Debug Commands for failure analysis
+    command: bash -c "ifconfig -a; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
+    register: debug
+  - name: TC5 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC_VLAN_DOUBLE_CREATE_{{inventory_hostname}}"
+    register: copy_log
+  - name: TC5 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC_VLAN_DOUBLE_CREATE_{{inventory_hostname}}
+      dest: /tmp/TC_VLAN_DOUBLE_CREATE_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+  - name: TC5 - Remove the logs from DUT
+    command: bash -c "rm -rf /tmp/TC*"
+    register: delete_logs
+  - name: TC5 - Fail here as one of the tasks in block failed
+    fail:
+       msg: One of the task in the block failed
+
+  always:
+  - name: TC5 - Clean up the VLAN
+    import_tasks: vlan_post_test.yml
+
+  when: (inventory_hostname == "DUT")

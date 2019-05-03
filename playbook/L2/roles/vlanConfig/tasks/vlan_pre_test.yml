@@ -1,0 +1,31 @@
+---
+
+- block:
+  - name: Create VLAN {{vlanid}} on DUT
+    command: bash -c "opx-config-vlan create --id {{vlanid}} --type data"
+    register: config_vlan
+    changed_when: false
+    ignore_errors: yes
+  - name: Verify the resulted output is success or failure
+    assert:
+      that: "config_vlan.rc == 0"
+      msg: "VLAN creation failed"
+  - name: Get the vlan {{vlanid}} from CPS
+    command: bash -c "opx-show-vlan --id {{vlanid}}"
+    register: show_cps
+    changed_when: false
+    ignore_errors: yes
+  - name: Verify if the VLAN is present in CPS
+    assert: 
+      that: "'No VLAN information found' not in show_cps.stdout"
+      msg: "VLAN is not found in the CPS"
+  - name: Get the vlan {{vlanid}} from the kernel
+    command: bash -c "brctl show br{{vlanid}}"
+    register: show_kernel
+    ignore_errors: yes
+  - name: Verify if the VLAN is present in the kernel
+    assert:
+      that: "'No such device' not in show_kernel.stdout"
+      msg: "VLAN is not found in the NPU"
+
+  when: inventory_hostname in groups['1host']
