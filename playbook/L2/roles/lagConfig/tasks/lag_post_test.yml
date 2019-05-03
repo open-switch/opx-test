@@ -1,0 +1,29 @@
+---
+
+- block:
+  - name: Delete member ports from the LAG
+    command: bash -c "opx-config-lag set --name {{lagid}} --unblockedports none --blockedports none"
+    register: clean_up_lag_member
+    ignore_errors: yes
+  - name: Clean up the LAG configurations
+    command: bash -c "opx-config-lag delete --name {{lagid}}"
+    register: clean_up_lag
+    ignore_errors: yes
+  - name: Check if bond {{lagid}} exists in the CPS
+    command: bash -c "opx-show-lag --id {{lagid}}"
+    register: show_cps
+    ignore_errors: yes
+  - name: Verify the output of the command whether bond {{lagid}} exists in CPS
+    assert:
+      that: "'No LAG information found' in show_cps.stdout"
+      msg: "Bond {{lagid}} still present in the CPS"
+  - name: Check if bond {{lagid}} exists in the kernel
+    command: bash -c "cat /proc/net/bonding/{{lagid}}"
+    register: show_kernel
+    ignore_errors: yes
+  - name: Verify the output of the command whether bond {{lagid}} exists in the kernel
+    assert:
+      that: "'No such file or directory' in show_kernel.stderr"
+      msg: "Bond {{lagid}} still present in the kernel"
+
+  when: inventory_hostname in groups['1host']
