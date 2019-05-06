@@ -39,9 +39,7 @@
   - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
-
   tags: ['Verify_LAG_creation_works','sanity']
-
   rescue:
   - name: TC1 - Debug Commands for failure analysis
     command: bash -c "ifconfig -a; cat /proc/net/bonding/{{lagid}}; journalctl -b"
@@ -60,14 +58,11 @@
     register: delete_logs
   - name: TC1 - Fail here as one of the tasks in block failed
     fail:
-       msg: One of the task in the block failed
-
+      msg: One of the task in the block failed
   always:
   - name: TC1 - Clean up the LAG
     import_tasks: lag_post_test.yml
-
   when: (inventory_hostname == "DUT")
-
 
 - block:
   - name: TC2 - Setup the switch before running the TCs
@@ -89,9 +84,7 @@
   - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
-
   tags: ['Verify_LAG_show_syntax_is_correct','sanity']
-
   rescue:
   - name: TC2 - Debug Commands for failure analysis
     command: bash -c "ifconfig -a; cat /proc/net/bonding/{{lagid}}; journalctl -b"
@@ -110,12 +103,10 @@
     register: delete_logs
   - name: TC2 - Fail here as one of the tasks in block failed
     fail:
-       msg: One of the task in the block failed
-
+      msg: One of the task in the block failed
   always:
   - name: TC2 - Clean up the LAG
     import_tasks: lag_post_test.yml
-
   when: (inventory_hostname == "DUT")
 
 
@@ -186,9 +177,7 @@
   - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
-
   tags: ['Verify_LAG_blocked_port_config_works','sanity']
-
   rescue:
   - name: TC3 - Debug Commands for failure analysis
     command: bash -c "ifconfig -a; cat /proc/net/bonding/{{lagid}}; journalctl -b"
@@ -207,12 +196,10 @@
     register: delete_logs
   - name: TC3 - Fail here as one of the tasks in block failed
     fail:
-       msg: One of the task in the block failed
-
+      msg: One of the task in the block failed
   always:
   - name: TC3 - Clean up the LAG
     import_tasks: lag_post_test.yml
-
   when: (inventory_hostname == "DUT")
 
 - block:
@@ -281,9 +268,7 @@
   - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
-
   tags: ['Verify_LAG_unblocked_port_config_works','sanity']
-
   rescue:
   - name: TC4 - Debug Commands for failure analysis
     command: bash -c "ifconfig -a; cat /proc/net/bonding/{{lagid}}; journalctl -b"
@@ -302,12 +287,10 @@
     register: delete_logs
   - name: TC4 - Fail here as one of the tasks in block failed
     fail:
-       msg: One of the task in the block failed
-
+      msg: One of the task in the block failed
   always:
   - name: TC4 - Clean up the LAG
     import_tasks: lag_post_test.yml
-
   when: (inventory_hostname == "DUT")
 
 - block:
@@ -326,9 +309,7 @@
     assert:
       that: "config_lag.rc != 0"
       msg: "A new LAG with an existing LAG ID could be created"
-
   tags: ['Verify_LAG_double_creation_fails','sanity']
-
   rescue:
   - name: TC5 - Debug Commands for failure analysis
     command: bash -c "ifconfig -a; cat /proc/net/bonding/{{lagid}}; journalctl -b"
@@ -347,10 +328,8 @@
     register: delete_logs
   - name: TC5 - Fail here as one of the tasks in block failed
     fail:
-       msg: One of the task in the block failed
-
+      msg: One of the task in the block failed
   always:
   - name: TC5 - Clean up the LAG
     import_tasks: lag_post_test.yml
-
   when: (inventory_hostname == "DUT")

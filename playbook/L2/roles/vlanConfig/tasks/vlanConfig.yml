@@ -39,9 +39,7 @@
   - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
-
   tags: ['Verify_Layer2_VLAN_creation_works','sanity']
-
   rescue:
   - name: TC1 - Debug Commands for failure analysis
     command: bash -c "ifconfig -a; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
@@ -60,13 +58,10 @@
     register: delete_logs
   - name: TC1 - Fail here as one of the tasks in block failed
     fail:
-       msg: One of the task in the block failed
-
-
+      msg: One of the task in the block failed
   always:
   - name: TC1 - Clean up the VLAN
     import_tasks: vlan_post_test.yml
-
   when: (inventory_hostname == "DUT")
 
 - block:
@@ -87,9 +82,7 @@
   - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
-
-  tags: ['Verify_Layer2_VLAN_show_syntax_is_correct','sanity']
-
+  tags: ['Verify_Layer2_VLAN_show_syntax_is_correct']
   rescue:
   - name: TC2 - Debug Commands for failure analysis
     command: bash -c "ifconfig -a; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
@@ -108,12 +101,10 @@
     register: delete_logs
   - name: TC2 - Fail here as one of the tasks in block failed
     fail:
-       msg: One of the task in the block failed
-
+      msg: One of the task in the block failed
   always:
   - name: TC2 - Clean up the VLAN
     import_tasks: vlan_post_test.yml
-
   when: (inventory_hostname == "DUT")
 
 - block:
@@ -182,9 +173,7 @@
   - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
-
   tags: ['Verify_Layer2_VLAN_tagged_port_config_works','sanity']
-
   rescue:
   - name: TC3 - Debug Commands for failure analysis
     command: bash -c "ifconfig -a; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
@@ -203,14 +192,11 @@
     register: delete_logs
   - name: TC3 - Fail here as one of the tasks in block failed
     fail:
-       msg: One of the task in the block failed
-
+      msg: One of the task in the block failed
   always:
   - name: TC3 - Clean up the VLAN
     import_tasks: vlan_post_test.yml
-
   when: (inventory_hostname == "DUT")
-
 
 - block:
   - name: TC4 - Setup the switch before running the TCs
@@ -281,7 +267,6 @@
   - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
-
   tags: ['Verify_Layer2_VLAN_untagged_port_config_works','sanity']
 
   rescue:
@@ -302,14 +287,11 @@
     register: delete_logs
   - name: TC4 - Fail here as one of the tasks in block failed
     fail:
-       msg: One of the task in the block failed
-
+      msg: One of the task in the block failed
   always:
   - name: TC4 - Clean up the VLAN
     import_tasks: vlan_post_test.yml
-
   when: (inventory_hostname == "DUT")
-
 
 - block:
   - name: TC5 - Setup the switch before running the TCs
@@ -330,9 +312,7 @@
   - name: Pause for 2 seconds for the next TC to start
     pause:
       seconds: 2
-
   tags: ['Verify_Layer2_VLAN_double_creation_fails','sanity']
-
   rescue:
   - name: TC5 - Debug Commands for failure analysis
     command: bash -c "ifconfig -a; brctl show br{{vlanid}}; brctl showstp br{{vlanid}}; journalctl -b"
@@ -351,10 +331,8 @@
     register: delete_logs
   - name: TC5 - Fail here as one of the tasks in block failed
     fail:
-       msg: One of the task in the block failed
-
+      msg: One of the task in the block failed
   always:
   - name: TC5 - Clean up the VLAN
     import_tasks: vlan_post_test.yml
-
   when: (inventory_hostname == "DUT")
