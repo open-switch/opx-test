@@ -33,6 +33,5 @@ set_onie_eth0: |
   ifconfig eth0
   ip route add default via {{ ansible_host_gateway }}
   route -n
-  sleep 5
 nos_install: |
   onie-nos-install {{ image|default('http://archive.openswitch.net/installers/3.0.0-dev2/Dell-EMC/PKGS_OPX-3.0.0-dev2-installer-x86_64.bin') }}

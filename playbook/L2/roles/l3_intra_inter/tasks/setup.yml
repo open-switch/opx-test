@@ -34,16 +34,23 @@
     apt:
       name: bridge-utils
       update_cache: yes
-  - name: Check the fanout port exists
-    command: bash -c "ip link show {{server_int}}"
-    register: fanout_int
+  - name: Cleanup the bridge {{vlanid}} on DUT and TR
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan delete --id {{vlanid}}"
+    register: del_bridge
+    ignore_errors: yes
+  - name: Cleanup the bridge {{interVLAN}} on DUT and TR
+    command: bash -c "opx-config-vlan set --id {{interVLAN}} --ports none --taggedports none; opx-config-vlan delete --id {{interVLAN}}"
+    register: del_bridge
     ignore_errors: yes
   - name: Fanout the ports connected to server
-    command: bash -c "{{fanoutcmd}} {{fanoutport}} {{splitport}} {{speed}}"
+    command: bash -c "{{fanoutcmd}} --port {{fanoutport}} --mode {{splitport}} --speed {{speed}}"
     register: fanout
-    when: 
-      - (inventory_hostname in groups['2host'][0]) or (inventory_hostname in groups['2host'][1])
-      - "'does not exist' in fanout_int.stderr"
+    ignore_errors: yes
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: Check fanout port exists
+    command: bash -c "ip link show {{server_int}}"
+    register: fanout
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: Bring up the front end ports connected to DUT,TR and Server
     command: bash -c "ip link set dev {{item}} up"
     with_items:
@@ -63,6 +70,10 @@
     assert:
       that: "'state UP' in verify_status_server.stdout"
       msg: "Interface is not up on Server side"
+  - name: Cleanup the bridges on the servers
+    command: bash -c "ip link set dev br{{vlanid}} down; brctl delbr br{{vlanid}}"
+    register: del_bridge
+    ignore_errors: yes
   when: (inventory_hostname in groups['2host'][2]) or (inventory_hostname in groups['2host'][3])
 
 

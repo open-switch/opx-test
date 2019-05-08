@@ -1,6 +1,5 @@
 ---
 
-
 - hosts: os
   gather_facts: false
   pre_tasks:
@@ -25,6 +24,22 @@
   become: true
   roles:
     - {role: General/roles/smoketest, tags: ['smoketest']}
+
+- hosts: 1host
+  gather_facts: false
+  pre_tasks:
+    - setup:
+  become: true
+  roles:
+    - {role: L2/roles/vlanConfig, tags: ['vlanConfig']}
+
+- hosts: 1host
+  gather_facts: false
+  pre_tasks:
+    - setup:
+  become: true
+  roles:
+    - {role: L2/roles/lagConfig, tags: ['lagConfig']}
 
 - hosts: 2host
   gather_facts: false
@@ -58,3 +73,33 @@
      - setup:
   roles:
     - {role: Forwarding/roles/span_mirroring, tags: ['span_mirroring']}
+
+- hosts: 2host
+  gather_facts: false
+  become: true
+  pre_tasks:
+     - setup:
+  roles:
+    - {role: L3/roles/l3-basic-functionality, tags: ['l3-basic-functionality']}
+
+- hosts: 2host
+  gather_facts: false
+  pre_tasks:
+    - setup:
+  become: true
+  roles:
+    - {role: L3/roles/data_vrf_basic, tags: ['data_vrf_basic']}
+
+- hosts: 2host
+  gather_facts: false
+  become: true
+  roles:
+    - {role: L2/roles/lldp, tags: ['lldp']}
+
+- hosts: 2host
+  gather_facts: false
+  become: true
+  pre_tasks:
+     - setup:
+  roles:
+    - {role: L3/roles/Routing_IPv6, tags: ['Routing_IPv6']}

@@ -1,0 +1,27 @@
+---
+
+- block:
+  - name: Bring up the ports on DUT and TR
+    command: bash -c "ifconfig {{vrf_port1}} up; ifconfig {{vrf_port2}} up"
+    when: (inventory_hostname in groups['2host'][0]) or (inventory_hostname in groups['2host'][1])
+  - name: GET - The port status
+    command: bash -c "ifconfig {{vrf_port1}}; ifconfig {{vrf_port1}}"
+    register: port_details
+    when: (inventory_hostname in groups['2host'][0]) or (inventory_hostname in groups['2host'][1])
+  - name: stdout the command output
+    debug:
+      msg: "{{port_details.stdout}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: VERIFY - IF port is admin UP
+    command: bash -c "ip link show {{item}} | grep 'UP'"
+    with_items:
+      - "{{vrf_port1}}"
+      - "{{vrf_port2}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: VERIFY - IF port is RUNNING state
+    command: bash -c "ifconfig {{item}} | grep 'RUNNING'"
+    with_items:
+      - "{{vrf_port1}}"
+      - "{{vrf_port2}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+

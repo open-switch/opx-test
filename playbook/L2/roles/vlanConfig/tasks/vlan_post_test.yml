@@ -1,0 +1,28 @@
+---
+
+- block:
+  - name: Delete member ports from the VLAN
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none"
+    register: clean_up_bridge_member
+    ignore_errors: yes
+  - name: Clean up the bridge configurations 
+    command: bash -c "opx-config-vlan delete --id {{vlanid}}"
+    register: clean_up_bridge
+  - name: Check br{{vlanid}} exists in the CPS
+    command: bash -c "opx-show-vlan --id {{vlanid}}"
+    register: show_cps
+    ignore_errors: yes
+  - name: Verify the output of the command whether br{{vlanid}} exists in CPS
+    assert:
+      that: "'No VLAN information found' in show_cps.stdout"
+      msg: "br{{vlanid}} still present in the CPS"
+  - name: Check br{{vlanid}} exists in the kernel
+    command: bash -c "brctl show br{{vlanid}}"
+    register: show_kernel
+    ignore_errors: yes
+  - name: Verify the output of the command whether br{{vlanid}} exists in kernel
+    assert:
+      that: "'No such device' in show_kernel.stderr"
+      msg: "br{{vlanid}} still present in the kernel"
+
+  when: inventory_hostname in groups['1host']

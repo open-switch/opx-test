@@ -1,0 +1,21 @@
+---
+# vars file for routing IPv6 Base functionality
+
+port1:  "e101-001-0"
+port2:  "e101-027-1"
+TR_PORT1:  "e101-001-0"
+server1_port: "ens192"
+DUT1_IPV6_ADDRESS_1:  "1234::5678"
+DUT1_IPV6_ADDRESS_2:  "2000::1"
+DUT1_IP_ADDRESS_1:  "1.1.1.1"
+DUT1_IP_ADDRESS_2:  "2.1.1.1"
+TR1_IP_ADDRESS_1:  "1.1.1.1"
+TR1_IPV6_ADDRESS_1:  "1234::5679"
+MASK:  '64'
+PREFIX:  '64'
+IP_MASK:  '24'
+server1_ip:  "2000::2"
+server2_ip:  "2001::1"
+route_shown:  "2000::/64"
+speed2:  "40g"
+combineport:   "1x1"
