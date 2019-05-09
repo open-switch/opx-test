@@ -1,0 +1,89 @@
+---
+
+- block:
+  - name: Dump the showversion command on DUT and TR
+    command: bash -c "{{path}}/{{versionCommand}}"
+    register: result
+  - debug:
+      var: result
+  - name: Get the MACHINE ID of DUT
+    command: bash -c "cat /var/lib/dbus/machine-id"
+    register: result
+  - name: Clean up the Journalctl Log
+    command: bash -c "rm -rf /var/run/log/journal/{{result.stdout_lines[0]}}/*"
+    register: clean_up_logs
+  - name: Enable logging on DUT and TR
+    command: bash -c "{{log_cmd}} enable ROUTE debug;{{log_cmd}} enable NETLINK debug;{{log_cmd}} enable L3_SERVICES debug"
+    register: result
+  - name: Restart the systemd-journald service
+    service:
+      name: systemd-journald
+      state: restarted
+  - name: Kill the user process
+    command: bash -c "pidof opx_nas_daemon"
+    register: result
+  - name: Issue the command to kill the process
+    command: bash -c "kill -USR1 {{result.stdout_lines[0]}}"
+    register: result
+  - name: Install bridge-utils package
+    apt:
+      name: bridge-utils
+      state: present #ansible check if package present
+      update_cache: yes
+    ignore_errors: yes
+  - name: Cleanup the bridges on DUT and TR
+    command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan delete --id {{vlanid}}"
+    register: del_bridge
+    ignore_errors: yes
+  - name: Fanout the ports connected to server
+    command: bash -c "opx-config-fanout --port {{fanoutport}} --mode {{splitport}} --speed {{splitspeed}}" 
+    register: result
+    ignore_errors: yes
+  - debug:
+      var: result
+  - name: Check the fanout port exists
+    command: bash -c "ip link show {{server_int}}"
+    register: result 
+  - debug:
+      var: result
+  - name: Bring up the front end ports connected to DUT,TR 
+    command: bash -c "ip link set dev {{item}} up"
+    with_items:
+        - "{{server_int}}"
+        - "{{test_int1}}"
+        - "{{test_int2}}"
+    register: result
+  - debug:
+      var: result
+  - name: STDOUT the command to check the ports are up on DUT and TR
+    command: bash -c "ip link show {{item}} | grep UP"
+    with_items:
+        - "{{server_int}}"
+        - "{{test_int1}}"
+        - "{{test_int2}}"
+    register: result
+  - name: Clean up the LAGs in DUT and TR
+    command: bash -c "opx-config-lag set --name {{bond_interface}} --unblockedports none --blockedports none; opx-config-lag delete --name {{bond_interface}}"
+    register: del_lag
+    ignore_errors: yes
+  - debug:
+      var: result
+  when: (inventory_hostname == 'DUT') or (inventory_hostname == 'TR') 
+
+- block:
+  - name: Bring up the server side port
+    command: bash -c "ip link set dev {{server_link}} up"
+    register: bring_up_server
+  - name: STDOUT the command to check the status of interface on server
+    command: bash -c "ip link show {{server_link}}"
+    register: verify_status_server
+  - name: Verify the status of the interfaces on Server
+    assert:
+      that: "'state UP' in verify_status_server.stdout"
+      msg: "Interface is not up on Server side"
+  - name: Cleanup the bridges on the servers
+    command: bash -c "ip link set dev br{{vlanid}} down; brctl delbr br{{vlanid}}"
+    register: del_bridge
+    ignore_errors: yes
+  when: (inventory_hostname == 'Server1') or (inventory_hostname == 'Server2')
+

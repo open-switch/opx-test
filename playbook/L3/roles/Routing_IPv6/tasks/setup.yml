@@ -1,0 +1,61 @@
+---
+
+- block:
+  - name: Check the fanout port exists
+    command: bash -c "ip link show {{server_int}}"
+    register: fanout_int
+    ignore_errors: yes
+    when: inventory_hostname == "DUT"
+  - name: Fanout the ports connected to server
+    command: bash -c "{{fanoutcmd}} --port {{fanoutport}} --mode {{splitport}} --speed {{speed}}"
+    register: fanout
+    when: (inventory_hostname == "DUT") and ("'does not exist' in fanout_int.stderr")
+  - name: Set Interface State - DUT
+    command: "ip link set dev {{item}} up"
+    with_items:
+        - "{{test_int1}}"
+        - "{{server_int}}"
+    register: set_interface_up_dut
+    when: inventory_hostname == "DUT"
+  - name: Set Interface State - TR
+    command: "ip link set dev {{test_int1}} up"
+    register: set_interface_state_tr
+    when: inventory_hostname == "TR"
+  - name: Set Interface State UP - Server1
+    command: "ip link set dev {{server1_port}} up"
+    register: up_interface_state_server1
+    when: inventory_hostname == "Server1"
+  - name: Show Port State - DUT
+    command: bash -c "ip link show dev {{item}}"
+    with_items:
+        - "{{test_int1}}"
+        - "{{server_int}}"
+    register: port_state_dut
+    when: inventory_hostname == "DUT"
+  - name: Verify Interface State is UP
+    assert:
+      that:
+        - "'state UP' in port_state_dut.results[0].stdout"
+        - "'state UP' in port_state_dut.results[1].stdout"
+      msg: "interfaces are not up"
+    when: inventory_hostname == "DUT"
+  - name: Show Port State - TR
+    command: bash -c "ip link show dev {{test_int1}}"
+    register: ported_tr
+    when: inventory_hostname == "TR"
+  - name: Verify Interface State is up TR
+    assert:
+      that:
+        - "'state UP' in ported_tr.stdout"
+      msg: "interfaces are not up"
+    when: inventory_hostname == "TR"
+  - name: Show Port State - Server1
+    command: "ip link show dev {{server1_port}}"
+    register: port_state_server1
+    when: inventory_hostname == "Server1"
+  - name: Verify Interface State is UP - Server1
+    assert:
+      that:
+        - "'state UP' in port_state_server1.stdout"
+      msg: "interfaces are not up"
+    when: inventory_hostname == "Server1"

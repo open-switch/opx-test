@@ -1,0 +1,8 @@
+---
+# vars file for vlanConfig
+
+vlanid:   108
+unknownMAC:  "00:00:00:11:11:11"
+dMAC:    "00:00:00:33:33:33"
+staticMAC:    "00:00:00:22:22:22"
+bond_interface:    "bond1"

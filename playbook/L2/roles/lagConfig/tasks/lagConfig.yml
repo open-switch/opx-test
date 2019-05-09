@@ -1,0 +1,335 @@
+---
+
+- block:
+  - name: Setup the switch before running the Tests
+    import_tasks: setup.yml
+  - name: TC1 - Verify LAG creation is successful
+    shell: echo "***** Verify LAG creation is successful *****"
+    register: TC1
+  - name: TC1 - Create LAG {{lagid}} on DUT
+    command: bash -c "opx-config-lag create --name {{lagid}}"
+    register: config_lag
+    changed_when: false
+    ignore_errors: yes
+  - name: TC1 - Verify the resulted output is success or failure
+    assert:
+      that: "config_lag.rc == 0"
+      msg: "LAG configuration failed"
+  - name: TC1 - Get the lag {{lagid}} from CPS
+    command: bash -c "opx-show-lag --name {{lagid}}"
+    register: show_cps
+    changed_when: false
+    ignore_errors: yes
+  - name: TC1 - STDOUT the lag {{lagid}} from CPS
+    debug:
+      msg: "{{show_cps.stdout}}"
+    ignore_errors: yes
+  - name: TC1 - Verify if the LAG is present in CPS
+    assert: 
+      that: "'No LAG information found' not in show_cps.stdout"
+      msg: "LAG is not found in the CPS"
+  - name: TC1 - Get the bond {{lagid}} from the kernel
+    command: bash -c "cat /proc/net/bonding/{{lagid}}"
+    register: show_kernel
+    ignore_errors: yes
+  - name: TC1 - Verify if the LAG is present in the kernel
+    assert:
+      that: "'No such file or directory' not in show_kernel.stdout"
+      msg: "LAG is not found in the kernel"
+  - name: Pause for 2 seconds for the next TC to start
+    pause:
+      seconds: 2
+  tags: ['Verify_LAG_creation_works','sanity']
+  rescue:
+  - name: TC1 - Debug Commands for failure analysis
+    command: bash -c "ifconfig -a; cat /proc/net/bonding/{{lagid}}; journalctl -b"
+    register: debug
+  - name: TC1 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC_LAG_CREATE_{{inventory_hostname}}"
+    register: copy_log
+  - name: TC1 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC_LAG_CREATE_{{inventory_hostname}}
+      dest: /tmp/TC_LAG_CREATE_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+  - name: TC1 - Remove the logs from DUT
+    command: bash -c "rm -rf /tmp/TC_LAG*"
+    register: delete_logs
+  - name: TC1 - Fail here as one of the tasks in block failed
+    fail:
+      msg: One of the task in the block failed
+  always:
+  - name: TC1 - Clean up the LAG
+    import_tasks: lag_post_test.yml
+  when: (inventory_hostname == "DUT")
+
+- block:
+  - name: TC2 - Setup the switch before running the TCs
+    import_tasks: setup.yml
+  - name: TC2 - Setup LAG before running the TC
+    import_tasks: lag_pre_test.yml
+  - name: TC2 - Verify opx-show-lag output is correct
+    shell: echo "******** Verify opx-show-lag output is correct ******"
+    register: TC2
+  - name: TC2 - Get the LAG data from CPS
+    command: bash -c "opx-show-lag --name {{lagid}}"
+    register: show_cps
+  - debug:
+      msg: "{{show_cps.stdout}}"
+  - name: TC2 - Verify the syntax of the show output is correct
+    assert:
+      that: "show_cps.stdout | match('{{lagid}}\n    LAG ID:           {{lagid}}\n    Name:             {{lagid}}\n    Interface index:  [0-9]+\n    Physical address: [0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\n    Number of ports:  0\n    Member ports:     None\n    Blocked ports:    \n    Un-blocked ports: \n    LAG port state:   None\n    Learning mode:    disable\n    MTU:              [0-9]+\n    Admin state:      down\n    Oper state:       down')"
+      msg: opx-show-lag output did not match the expected pattern
+  - name: Pause for 2 seconds for the next TC to start
+    pause:
+      seconds: 2
+  tags: ['Verify_LAG_show_syntax_is_correct','sanity']
+  rescue:
+  - name: TC2 - Debug Commands for failure analysis
+    command: bash -c "ifconfig -a; cat /proc/net/bonding/{{lagid}}; journalctl -b"
+    register: debug
+  - name: TC2 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC_LAG_CREATE_{{inventory_hostname}}"
+    register: copy_log
+  - name: TC2 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC_LAG_CREATE_{{inventory_hostname}}
+      dest: /tmp/TC_LAG_CREATE_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+  - name: TC2 - Remove the logs from DUT
+    command: bash -c "rm -rf /tmp/TC_LAG*"
+    register: delete_logs
+  - name: TC2 - Fail here as one of the tasks in block failed
+    fail:
+      msg: One of the task in the block failed
+  always:
+  - name: TC2 - Clean up the LAG
+    import_tasks: lag_post_test.yml
+  when: (inventory_hostname == "DUT")
+
+
+- block:
+  - name: TC3 - Setup the switch before running the TCs
+    import_tasks: setup.yml
+  - name: TC3 - Setup LAG before running the TC
+    import_tasks: lag_pre_test.yml
+  - name: TC3 - Verify if blocked port addition to a LAG is successful
+    shell: echo "***** Verify if blocked port addition to a LAG is successful *****"
+    register: TC3
+  - name: TC3 - Add a blocked port {{test_int1}} to lag {{lagid}}
+    command: bash -c "opx-config-lag add --name {{lagid}} --blockedports {{test_int1}}"
+    register: config_lag
+  - name: TC3 - Get the LAG data from CPS
+    command: bash -c "opx-show-lag --name {{lagid}}"
+    register: show_cps
+  - name: TC3 - Verify if the LAG contains the blockedport {{test_int1}} in the CPS data
+    assert:
+      that: "show_cps.stdout | search('Blocked ports:    {{test_int1}}')"
+      msg: CPS is not updated - blockedport {{test_int1}} is not present in the LAG {{lagid}}
+  - name: TC3 - Get the bond {{lagid}} from the kernel
+    command: bash -c "cat /proc/net/bonding/{{lagid}}"
+    register: show_kernel
+  - name: TC3 - Verify if the LAG contains the blockedport {{test_int1}} in the kernel data
+    assert:
+      that: "not show_kernel.stdout | search('Slave Interface: {{test_int1}}')"
+      msg: Kernel is not updated - port {{test_int1}} is not blocked from the LAG {{lagid}}
+  - name: TC3 - Remove blocked port {{test_int1}} from lag {{lagid}}
+    command: bash -c "opx-config-lag remove --name {{lagid}} --blockedports {{test_int1}}"
+    register: config_lag
+  - name: TC3 - Get the LAG data from CPS
+    command: bash -c "opx-show-lag --name {{lagid}}"
+    register: show_cps
+  - debug:
+      msg: "{{show_cps.stdout}}"
+  - name: TC3 - Verify if the LAG still contains the blockedport {{test_int1}} in the CPS data
+    assert:
+      that: "not show_cps.stdout | search('Blocked ports:    {{test_int1}}')"
+      msg: CPS is not updated - blockedport {{test_int1}} is still present in the LAG {{lagid}}
+  - name: TC3 - Get the bond {{lagid}} from the kernel
+    command: bash -c "cat /proc/net/bonding/{{lagid}}"
+    register: show_kernel
+  - name: TC3 - Verify if the LAG contains the blockedport {{test_int1}} in the kernel data
+    assert:
+      that: "not show_kernel.stdout | search('Slave Interface: {{test_int1}}')"
+      msg: Kernel is not updated - blockedport {{test_int1}} is still present in the LAG {{lagid}}
+  - name: TC3 - Set blocked ports {{test_int1}},{{test_int2}} in the LAG {{lagid}}
+    command: bash -c "opx-config-lag set --name {{lagid}} --unblockedports none --blockedports none; opx-config-lag set --name {{lagid}} --blockedports {{test_int1}},{{test_int2}}"
+    register: config_lag
+  - name: TC3 - Get the LAG data from CPS
+    command: bash -c "opx-show-lag --name {{lagid}}"
+    register: show_cps
+  - name: TC3 - Verify if the LAG contains the blocked ports {{test_int1}} and {{test_int2}} in the CPS data
+    assert:
+      that: 
+      - "show_cps.stdout | search('Blocked ports:    {{test_int2}} {{test_int1}}')"
+      msg: CPS is not updated - blocked ports {{test_int1}} and {{test_int2}} re not present in the LAG {{lagid}}
+  - name: TC3 - Get the bond {{lagid}} from the kernel
+    command: bash -c "cat /proc/net/bonding/{{lagid}}"
+    register: show_kernel
+  - name: TC3 - Verify if the LAG contains the blocked ports {{test_int1}} and {{test_int2}} in the kernel data
+    assert:
+      that: 
+      - "not show_kernel.stdout | search('Slave Interface: {{test_int1}}')"
+      - "not show_kernel.stdout | search('Slave Interface: {{test_int2}}')"
+      msg: Kernel is not updated - ports {{test_int1}} and {{test_int2}} are present in the LAG {{lagid}}
+  - name: Pause for 2 seconds for the next TC to start
+    pause:
+      seconds: 2
+  tags: ['Verify_LAG_blocked_port_config_works','sanity']
+  rescue:
+  - name: TC3 - Debug Commands for failure analysis
+    command: bash -c "ifconfig -a; cat /proc/net/bonding/{{lagid}}; journalctl -b"
+    register: debug
+  - name: TC3 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC_LAG_CREATE_{{inventory_hostname}}"
+    register: copy_log
+  - name: TC3 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC_LAG_CREATE_{{inventory_hostname}}
+      dest: /tmp/TC_LAG_CREATE_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+  - name: TC3 - Remove the logs from DUT
+    command: bash -c "rm -rf /tmp/TC_LAG*"
+    register: delete_logs
+  - name: TC3 - Fail here as one of the tasks in block failed
+    fail:
+      msg: One of the task in the block failed
+  always:
+  - name: TC3 - Clean up the LAG
+    import_tasks: lag_post_test.yml
+  when: (inventory_hostname == "DUT")
+
+- block:
+  - name: TC4 - Setup the switch before running the TCs
+    import_tasks: setup.yml
+  - name: TC4 - Setup LAG before running the TC
+    import_tasks: lag_pre_test.yml
+  - name: TC4 - Verify if unblocked port addition to a LAG is successful
+    shell: echo "***** Verify if unblocked port addition to a LAG is successful *****"
+    register: TC4
+  - name: TC4 - Add an unblocked port {{test_int2}} to lag {{lagid}}
+    command: bash -c "opx-config-lag add --name {{lagid}} --unblockedports {{test_int2}}"
+    register: config_lag
+  - name: TC4 - Get the LAG data from CPS
+    command: bash -c "opx-show-lag --name {{lagid}}"
+    register: show_cps
+  - name: TC4 - Verify if the LAG contains the unblockedport {{test_int2}} in the CPS data
+    assert:
+      that: 
+      - "show_cps.stdout | search('Un-blocked ports: {{test_int2}}')"
+      msg: CPS is not updated - unblockedport {{test_int2}} is not present in the LAG {{lagid}}
+  - name: TC4 - Get the bond {{lagid}} from the kernel
+    command: bash -c "cat /proc/net/bonding/{{lagid}}"
+    register: show_kernel
+  - name: TC4 - Verify if the LAG contains the unblockedport {{test_int2}} in the kernel data
+    assert:
+      that: "show_kernel.stdout | search('Slave Interface: {{test_int2}}')"
+      msg: Kernel is not updated - port {{test_int2}} is not present in the LAG {{lagid}}
+  - name: TC4 - Remove unblocked port {{test_int2}} from lag {{lagid}}
+    command: bash -c "opx-config-lag remove --name {{lagid}} --unblockedports {{test_int2}}"
+    register: config_lag
+  - name: TC4 - Get the LAG data from CPS
+    command: bash -c "opx-show-lag --name {{lagid}}"
+    register: show_cps
+  - name: TC4 - Verify if the LAG contains the unblockedport {{test_int2}} in the CPS data
+    assert:
+      that: "not show_cps.stdout | search('Un-blocked ports: {{test_int2}}')"
+      msg: CPS is not updated - unblockedport {{test_int2}} is still present in the LAG {{lagid}}
+  - name: TC4 - Get the bond {{lagid}} from the kernel
+    command: bash -c "cat /proc/net/bonding/{{lagid}}"
+    register: show_kernel
+  - name: TC4 - Verify if the LAG contains the unblockedport {{test_int2}} in the kernel data
+    assert:
+      that: "not show_kernel.stdout | search('Slave Interface: {{test_int2}}')"
+      msg: Kernel is not updated - unblockedport {{test_int2}} is still present in the LAG {{lagid}}
+  - name: TC4 - Set unblocked ports {{test_int1}},{{test_int2}} in the LAG {{lagid}}
+    command: bash -c "opx-config-lag set --name {{lagid}} --unblockedports {{test_int1}},{{test_int2}}"
+    register: config_lag
+  - name: TC4 - Get the LAG data from CPS
+    command: bash -c "opx-show-lag --name {{lagid}}"
+    register: show_cps
+  - name: TC4 - Verify if the LAG contains the unblocked ports {{test_int1}} and {{test_int2}} in the CPS data
+    assert:
+      that: 
+      - "show_cps.stdout | search('Un-blocked ports: {{test_int2}} {{test_int1}}')"
+      msg: CPS is not updated - unblocked ports {{test_int1}} and {{test_int2}} are not present in the LAG {{lagid}}
+  - name: TC4 - Get the bond {{lagid}} from the kernel
+    command: bash -c "cat /proc/net/bonding/{{lagid}}"
+    register: show_kernel
+  - name: TC4 - Verify if the LAG contains the unblocked ports {{test_int1}} and {{test_int2}} in the kernel data
+    assert:
+      that:
+      - "show_kernel.stdout | search('Slave Interface: {{test_int1}}')"
+      - "show_kernel.stdout | search('Slave Interface: {{test_int2}}')"
+      msg: Kernel is not updated - unblocked ports {{test_int1}} and {{test_int2}} are not present in the LAG {{lagid}}
+  - name: Pause for 2 seconds for the next TC to start
+    pause:
+      seconds: 2
+  tags: ['Verify_LAG_unblocked_port_config_works','sanity']
+  rescue:
+  - name: TC4 - Debug Commands for failure analysis
+    command: bash -c "ifconfig -a; cat /proc/net/bonding/{{lagid}}; journalctl -b"
+    register: debug
+  - name: TC4 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC_LAG_CREATE_{{inventory_hostname}}"
+    register: copy_log
+  - name: TC4 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC_LAG_CREATE_{{inventory_hostname}}
+      dest: /tmp/TC_LAG_CREATE_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+  - name: TC4 - Remove the logs from DUT
+    command: bash -c "rm -rf /tmp/TC_LAG*"
+    register: delete_logs
+  - name: TC4 - Fail here as one of the tasks in block failed
+    fail:
+      msg: One of the task in the block failed
+  always:
+  - name: TC4 - Clean up the LAG
+    import_tasks: lag_post_test.yml
+  when: (inventory_hostname == "DUT")
+
+- block:
+  - name: TC5 - Setup the switch before running the TCs
+    import_tasks: setup.yml
+  - name: TC5 - Setup LAG before running the TC
+    import_tasks: lag_pre_test.yml
+  - name: TC5 - Verify the behavior when creating a LAG with an existing LAG ID 
+    shell: echo "***** Verify the behavior when creating a LAG with an existing LAG ID *****"
+    register: TC5
+  - name: TC5 - Create a LAG with an exising LAG ID
+    command: bash -c "opx-config-lag create --name {{lagid}}"
+    register: config_lag
+    ignore_errors: yes
+  - name: TC5 - Verify the resulted output is failure
+    assert:
+      that: "config_lag.rc != 0"
+      msg: "A new LAG with an existing LAG ID could be created"
+  tags: ['Verify_LAG_double_creation_fails','sanity']
+  rescue:
+  - name: TC5 - Debug Commands for failure analysis
+    command: bash -c "ifconfig -a; cat /proc/net/bonding/{{lagid}}; journalctl -b"
+    register: debug
+  - name: TC5 - Copy the journalctl logs to a log file
+    command: bash -c "journalctl -b > /tmp/TC_LAG_CREATE_{{inventory_hostname}}"
+    register: copy_log
+  - name: TC5 - Copy the journalctl logs to the local machine
+    fetch:
+      src: /tmp/TC_LAG_CREATE_{{inventory_hostname}}
+      dest: /tmp/TC_LAG_CREATE_{{inventory_hostname}}
+      mode: 0755
+      flat: yes
+  - name: TC5 - Remove the logs from DUT
+    command: bash -c "rm -rf /tmp/TC_LAG*"
+    register: delete_logs
+  - name: TC5 - Fail here as one of the tasks in block failed
+    fail:
+      msg: One of the task in the block failed
+  always:
+  - name: TC5 - Clean up the LAG
+    import_tasks: lag_post_test.yml
+  when: (inventory_hostname == "DUT")

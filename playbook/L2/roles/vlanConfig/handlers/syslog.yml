@@ -1,0 +1,10 @@
+---
+
+- name: Copy the syslogs from DUT to the local machine
+  fetch:
+    src: /var/log/syslog
+    dest: /tmp/TC1_vlanConfig_{{inventory_hostname}}
+    mode: 0755
+    flat: yes
+  when: inventory_hostname == "DUT"
+
