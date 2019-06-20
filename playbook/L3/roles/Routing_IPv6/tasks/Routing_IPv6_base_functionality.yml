@@ -87,8 +87,8 @@
     register: set_interface_state_tr
     when: inventory_hostname == "TR"
   - name: TC1 Set Interface State Down - Server1
-    command: "ip link set dev {{server1_port}} down"
-    register: up_interface_state_server1
+    command: "ip link set dev {{server_link}} down"
+    register: down_interface_state_server1
     when: inventory_hostname == "Server1"
   - name: Revert fanned out port connected to server
     command: bash -c "{{fanoutcmd}} --port {{server_int}} --mode {{combineport}} --speed {{speed2}}"
@@ -137,11 +137,11 @@
       msg: "IPv6 setup failed on the ports"
     when: inventory_hostname == "TR"
   - name: TC2 - Configure IPv6 Address - Server1
-    command: "ip addr add {{server1_ip}}/{{MASK}} dev {{server1_port}}"
+    command: "ip addr add {{server1_ip}}/{{MASK}} dev {{server_link}}"
     register: ipv6_addr_server1
     when: inventory_hostname == "Server1"
   - name: TC2 - Show IPv6 Address - Server1
-    command: bash -c "ip addr show dev {{server1_port}}"
+    command: bash -c "ip addr show dev {{server_link}}"
     register: show_ipv6_address_server1
     when: inventory_hostname == "Server1"
   - debug: msg="{{show_ipv6_address_server1.stdout}}"
@@ -281,7 +281,7 @@
     register: tr_static_route_del
     when: inventory_hostname == "Server1"
   - name: TC2 - Remove IPv6 address on server1 (Traffic Generator)
-    command: "ip addr flush dev {{server1_port}}"
+    command: "ip addr flush dev {{server_link}}"
     register: ipv6_addr_server1_del
     when: inventory_hostname == "Server1"
   - name: TC2 - remove ipv6 addresses from interface DUT
@@ -311,7 +311,7 @@
     register: set_interface_state_dut
     when: inventory_hostname == "DUT"
   - name: TC2 - set interface state Down Server1
-    command: "ip link set dev {{server1_port}} down"
+    command: "ip link set dev {{server_link}} down"
     register: down_interface_state_server1
     when: inventory_hostname == "Server1"
   - name: Revert fanned out port connected to server
@@ -361,11 +361,11 @@
       msg: "IPv6 setup failed on the ports"
     when: inventory_hostname == "TR"
   - name: TC3 - Configure IPv6 Address - Server1
-    command: "ip addr add {{server1_ip}}/{{MASK}} dev {{server1_port}}"
+    command: "ip addr add {{server1_ip}}/{{MASK}} dev {{server_link}}"
     register: ipv6_addr_server1
     when: inventory_hostname == "Server1"
   - name: TC3 - Show IPv6 Address - Server1
-    command: bash -c "ip addr show dev {{server1_port}}"
+    command: bash -c "ip addr show dev {{server_link}}"
     register: show_ipv6_address_server1
     when: inventory_hostname == "Server1"
   - debug: msg="{{show_ipv6_address_server1.stdout}}"

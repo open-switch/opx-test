@@ -1,16 +1,34 @@
 ---
 
+# Initial setup required on DUT and TR
+- block:
+  - name: Fanout ports on DUT 
+    command: bash -c "{{fanoutcmd}} --port {{item}} --mode {{splitport}} --speed {{speed}}"
+    with_items:
+        - "{{test_int}}"
+        - "{{fanoutport}}"
+    register: result
+    when: (inventory_hostname == "DUT") 
+  - name: Fanout port-groups on TR 
+    command: bash -c "{{fanoutcmd}} --pg_name {{item.pg}} --mode {{item.mode}} --speed {{speed}}"
+    with_items:
+        - { pg: "{{port_group1}}", mode: "{{splitport}}" }
+        - { pg: "{{port_group2}}", mode: "{{mode}}" }
+    register: result
+    when: (inventory_hostname == "TR")
+  - name: Check the fanout port exists on DUT and TR
+    command: bash -c "ip link show {{server_int}}"
+    register: result 
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: STDOUT the "ip link show {{server_int}}" output
+    debug:
+      msg: "{{result.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+
 - block:
   - name: Dump the showversion command on DUT and TR
     command: bash -c "{{path}}/{{versionCommand}}"
     register: show_version
-#  - name: Check the system state running
-#    shell: bash -c "{{system_status}}"
-#    register: system_status_result
-#    until: "'System State:  running' in system_status_result.stdout"
-#    retries: 120
-#    delay: 1
-#    ignore_errors: yes
   - name: Get the MACHINE ID of DUT
     command: bash -c "cat /var/lib/dbus/machine-id"
     register: get_machine_id
@@ -39,15 +57,6 @@
     command: bash -c "opx-config-vlan set --id {{vlanid}} --ports none --taggedports none; opx-config-vlan delete --id {{vlanid}}"
     register: del_bridge
     ignore_errors: yes
-  - name: Fanout the ports connected to server
-    command: bash -c "{{fanoutcmd}} --port {{fanoutport}} --mode {{splitport}} --speed {{speed}}"
-    register: fanout
-    ignore_errors: yes
-    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
-  - name: Check the fanout port exists
-    command: bash -c "ip link show {{server_int}}"
-    register: fanout_int
-    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: Bring up the front end ports connected to DUT,TR and Server
     command: bash -c "ip link set dev {{item}} up"
     register: interfaces_up

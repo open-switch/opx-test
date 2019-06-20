@@ -13,5 +13,3 @@ vrf_network_prefix2: "2.2.2.0/24"
 vrf_name2: red
 ip_address3: "3.3.3.1"
 
-vrf_port1: "e101-001-0"
-vrf_port2: "e101-002-0"

@@ -11,7 +11,5 @@ IPAddr3: "200.1.1.1"
 IPAddr4: "200.1.1.2"
 IPAddr5: "201.1.1.1"
 IPAddr6: "201.1.1.2"
-splitport: "4x1"
-speed: "40g"
-splitspeed: "10g"
+fanin_speed: "100g"
 

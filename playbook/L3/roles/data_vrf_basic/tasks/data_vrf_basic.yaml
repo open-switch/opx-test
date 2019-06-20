@@ -41,7 +41,7 @@
 
 - block:
   - name: TC2 - Add port to the configured VRF
-    command: bash -c "{{vrf_config_cmd}} add --name {{vrf_name}} --ports {{vrf_port1}}"
+    command: bash -c "{{vrf_config_cmd}} add --name {{vrf_name}} --ports {{test_int1}}"
     changed_when: false
     register: vrf_config_portadd
   - name: stdout the command output
@@ -56,7 +56,7 @@
       msg: "{{vrfport_namespace.stdout}}"
   - name: Verify if the configured port is present in VRF
     assert:
-      that: "'v-{{vrf_port1}}' in vrfport_namespace.stdout"
+      that: "'v-{{test_int1}}' in vrfport_namespace.stdout"
       msg: Port not added to the VRF
   tags: ['verify_adding_port_to_vrf','full','sanity']
   rescue:
@@ -71,10 +71,10 @@
 
 - block:
   - name: TC3 - Configure IP address on the virtual interfaces on the DUT
-    command: bash -c "opx-config-route create --vrf_name {{vrf_name}} --ip_addr {{ip_address1}}/{{subnetmask1}} --ifname v-{{vrf_port1}}"
+    command: bash -c "opx-config-route create --vrf_name {{vrf_name}} --ip_addr {{ip_address1}}/{{subnetmask1}} --ifname v-{{test_int1}}"
     changed_when: false
   - name: GET - The IP address of the VRF port in kernel on the DUT
-    command: bash -c "ip netns exec {{vrf_name}} ifconfig v-{{vrf_port1}}"
+    command: bash -c "ip netns exec {{vrf_name}} ifconfig v-{{test_int1}}"
     changed_when: false
     register: ip_config_dut
   - name: stdout the command output
@@ -131,7 +131,7 @@
 
 - block:
   - name: TC5 - Remove port from the configured VRF
-    command: bash -c "{{vrf_config_cmd}} remove --name {{vrf_name}} --ports {{vrf_port1}}"
+    command: bash -c "{{vrf_config_cmd}} remove --name {{vrf_name}} --ports {{test_int1}}"
     changed_when: false
     register: vrf_config_portremove
   - name: stdout the command output
@@ -146,7 +146,7 @@
       msg: "{{vrfportrem_namespace.stdout}}"
   - name: Verify if the configured port is present in the namespace
     assert:
-      that: "'v-{{vrf_port1}}' not in vrfportrem_namespace.stdout"
+      that: "'v-{{test_int1}}' not in vrfportrem_namespace.stdout"
       msg: Port not removed from the VRF
   tags: ['verify_removing_port_from_vrf','full','sanity']
   rescue:
@@ -193,19 +193,19 @@
   - name: TC7 - Verify VRF static route leaking
     shell: echo "TC1 Verify VRF static route leaking"
   - name: TC7.1 - Create new VRFs red and blue
-    command: bash -c "opx-config-vrf create --name red --ports {{vrf_port2}}; opx-config-vrf create --name blue --ports {{vrf_port1}}"
+    command: bash -c "opx-config-vrf create --name red --ports {{test_int2}}; opx-config-vrf create --name blue --ports {{test_int1}}"
     changed_when: false
     register: create_vrf
   - name: TC7.2 - configure ips on the interfaces in the VRFs
-    command: bash -c "opx-config-route create --vrf_name blue --ip_addr {{ip_address1}}/{{subnetmask1}} --ifname v-{{vrf_port1}};opx-config-route create --vrf_name red --ip_addr {{ip_address3}}/{{subnetmask2}} --ifname v-{{vrf_port2}}"
+    command: bash -c "opx-config-route create --vrf_name blue --ip_addr {{ip_address1}}/{{subnetmask1}} --ifname v-{{test_int1}};opx-config-route create --vrf_name red --ip_addr {{ip_address3}}/{{subnetmask2}} --ifname v-{{test_int2}}"
     changed_when: false
     register: configure_ip_vrf
   - name: TC7.3 - Configure static route leaking from blue VRF to red VRF
-    command: bash -c "opx-config-route create --vrf_name blue --dst {{vrf_network_prefix}} --nh_vrf_name {{vrf_name2}} --ifname v-{{vrf_port2}}"
+    command: bash -c "opx-config-route create --vrf_name blue --dst {{vrf_network_prefix}} --nh_vrf_name {{vrf_name2}} --ifname v-{{test_int2}}"
     changed_when: false
     register: route_vrf
   - name: TC7.4 - Configure reverse static route leaking
-    command: bash -c "opx-config-route create --vrf_name red --dst {{vrf_network_prefix2}} --nh_vrf_name {{vrf_name}} --ifname v-{{vrf_port1}}"
+    command: bash -c "opx-config-route create --vrf_name red --dst {{vrf_network_prefix2}} --nh_vrf_name {{vrf_name}} --ifname v-{{test_int1}}"
     changed_when: false
     register: route_vrf
   - name: TC7.5 - Check VRF static route leaking enabled on {{vrf_name}}
@@ -228,6 +228,6 @@
      msg: One of the task in the block failed
   always:
   - name: TC7 - Remove ports from VRF and delete VRF
-    command: bash -c "opx-config-vrf remove --name {{vrf_name}} --ports {{vrf_port1}};opx-config-vrf remove --name {{vrf_name2}} --ports {{vrf_port2}}; opx-config-vrf delete --name {{vrf_name}};opx-config-vrf delete --name {{vrf_name2}}"
+    command: bash -c "opx-config-vrf remove --name {{vrf_name}} --ports {{test_int1}};opx-config-vrf remove --name {{vrf_name2}} --ports {{test_int2}}; opx-config-vrf delete --name {{vrf_name}};opx-config-vrf delete --name {{vrf_name2}}"
     register: delete_vrf
   when: (inventory_hostname == "DUT")

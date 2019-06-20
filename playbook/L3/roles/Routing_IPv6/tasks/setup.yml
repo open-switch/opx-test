@@ -1,15 +1,37 @@
 ---
 
+# Initial setup required on DUT and TR
 - block:
   - name: Check the fanout port exists
     command: bash -c "ip link show {{server_int}}"
     register: fanout_int
     ignore_errors: yes
     when: inventory_hostname == "DUT"
-  - name: Fanout the ports connected to server
-    command: bash -c "{{fanoutcmd}} --port {{fanoutport}} --mode {{splitport}} --speed {{speed}}"
-    register: fanout
+  - name: Fanout ports on DUT 
+    command: bash -c "{{fanoutcmd}} --port {{item}} --mode {{splitport}} --speed {{speed}}"
+    with_items:
+        - "{{test_int}}"
+        - "{{fanoutport}}"
+    register: result
     when: (inventory_hostname == "DUT") and ("'does not exist' in fanout_int.stderr")
+  - name: Fanout port-groups on TR 
+    command: bash -c "{{fanoutcmd}} --pg_name {{item.pg}} --mode {{item.mode}} --speed {{speed}}"
+    with_items:
+        - { pg: "{{port_group1}}", mode: "{{splitport}}" }
+        - { pg: "{{port_group2}}", mode: "{{mode}}" }
+    register: result
+    when: (inventory_hostname == "TR")
+  - name: Check the fanout port exists on DUT and TR
+    command: bash -c "ip link show {{server_int}}"
+    register: result 
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: STDOUT the "ip link show {{server_int}}" output
+    debug:
+      msg: "{{result.stdout_lines}}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  
+
+- block:
   - name: Set Interface State - DUT
     command: "ip link set dev {{item}} up"
     with_items:
@@ -17,14 +39,20 @@
         - "{{server_int}}"
     register: set_interface_up_dut
     when: inventory_hostname == "DUT"
+  - pause:
+      seconds: 10
   - name: Set Interface State - TR
     command: "ip link set dev {{test_int1}} up"
     register: set_interface_state_tr
     when: inventory_hostname == "TR"
+  - pause:
+      seconds: 10
   - name: Set Interface State UP - Server1
-    command: "ip link set dev {{server1_port}} up"
+    command: "ip link set dev {{server_link}} up"
     register: up_interface_state_server1
-    when: inventory_hostname == "Server1"
+    when: (inventory_hostname == "Server1") 
+  - pause:
+      seconds: 10
   - name: Show Port State - DUT
     command: bash -c "ip link show dev {{item}}"
     with_items:
@@ -50,7 +78,7 @@
       msg: "interfaces are not up"
     when: inventory_hostname == "TR"
   - name: Show Port State - Server1
-    command: "ip link show dev {{server1_port}}"
+    command: "ip link show dev {{server_link}}"
     register: port_state_server1
     when: inventory_hostname == "Server1"
   - name: Verify Interface State is UP - Server1

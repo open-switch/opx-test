@@ -93,10 +93,9 @@
     command: bash -c "echo 'Start Cleanup for TC2'"
   - name: TC2 - Bring down the fanout interface on DUT
     command: bash -c "ip link set {{server_int}} down; ip addr flush dev {{server_int}}"
-  - name: TC2 - Disable the port fanout configuraion (fanin the port)
-    command: bash -c "{{fanoutcmd}} --port {{server_int}} --mode 1x1 --speed {{speed}}"
+  - name: TC2 - Revert fanout configuration on port {{server_int}} on DUT
+    command: bash -c "{{fanoutcmd}} --port {{server_int}} --mode 1x1 --speed {{fanin_speed}}"
     register: result
-    ignore_errors: yes
   when: inventory_hostname == "DUT"
 
 
@@ -109,7 +108,7 @@
     command: bash -c "opx-config-lag create --name {{bond_interface}} --unblockedports {{test_int1}},{{test_int2}}; ip link set dev {{test_int1}} up; ip link set dev {{test_int2}} up; opx-config-lag set --name {{bond_interface}} --enable"
     register: result
   - pause:
-      seconds: 3
+      seconds: 5
   - debug: 
       var: result
   - name: TC3 - Verify LAG interface state
@@ -118,8 +117,8 @@
     failed_when: result.rc == 1
   - name: TC3 - Check if LAG Oper stats is UP
     assert:
-      that: "'Oper state:       up' in result.stdout"
-      msg: "Oper status of LAG {{bond_interface}} is down"
+      that: "'Admin state:      up' in result.stdout"
+      msg: "Admin status of LAG {{bond_interface}} is down"
   - name: TC3 - Configure ipv4_address to a lag interface on DUT
     command: bash -c "ip addr add {{IPAddr1}}/{{prefixlen}} dev {{bond_interface}}" 
     register: result
@@ -216,7 +215,7 @@
     command: bash -c "opx-show-route | grep {{route0}}"
     register: result
     failed_when: result.rc == 0   
-  tags: ['Verify user can add modify and delete ipv4 address to a vlan_interface','sanity']
+  tags: ['Verify user can add modify and delete ipv4 address to a vlan_interface']
   rescue:
   - name: TC5 - In rescue section, display result variable
     debug:
@@ -449,7 +448,11 @@
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   - name: TC8 - Print result
     debug:
-      msg: "Fanout ports ping result: {{ result.stdout_lines }}"
+      msg: "Lag ports ping result: {{ result.stdout_lines }}"
+    when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
+  - name: TC8 - Unconfigure ip address on lag interfaces on DUT and TR
+    command: bash -c "ip addr flush dev {{bond_interface}}"
+    register: result
     when: (inventory_hostname == "DUT") or (inventory_hostname == "TR")
   tags: ['Verify arp got resolved and ping works on lag interface','sanity']
   rescue:
@@ -500,7 +503,7 @@
       var: result
     when: (inventory_hostname == "DUT") 
   - name: TC9 - Configure IPv4 address to bridge {{bridge}} on TR
-    command: bash -c "ip addr flush dev {{bridge}}; ip addr add {{IPAddr2}}/{{prefixlen}} dev {{bridge}}; ifconfig {{bridge}}"
+    command: bash -c "ip addr flush dev {{bridge}} && ip addr add {{IPAddr2}}/{{prefixlen}} dev {{bridge}} && ifconfig {{bridge}} && ping -c 3 {{IPAddr1}}"
     register: result
     when: (inventory_hostname == "TR")    
   - debug: 
