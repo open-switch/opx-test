@@ -4,13 +4,14 @@
 # server_link is the link on the server side(Server1 and Server2)
 # test_int1, test_int2 and test_int3 are the ports connected between DUT and TR
 
-
+# DUT - Platform z9100 (dv-opx-z9100-03)
 fanoutport:  "e101-027-0"
 splitport:   "4x1"
 speed:    "10g"
 server_int:   "e101-027-1"
-test_int1:   "e101-001-0"
-test_int2:   "e101-002-0"
-test_int3:   "e101-003-0"
+test_int:    "e101-001-0"
+test_int1:   "e101-001-1"
+test_int2:   "e101-001-2"
+test_int3:   "e101-001-3"
 server_link: "ens192"
 test_mgmtint:   "eth0"
